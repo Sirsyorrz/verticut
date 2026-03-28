@@ -57,8 +57,8 @@ async function handleFile(file) {
     startLoop();
     addAutoGameplayZone();
     audioTracks = (data.audio_tracks || []).map(t => ({ ...t, muted: false }));
-    renderAudioTracks();
     setupTrackAudioEls();
+    renderAudioTracks();
     toast('Auto-added centered 9:16 crop — draw more zones or adjust as needed');
   });
   dz.style.display = 'none';

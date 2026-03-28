@@ -27,6 +27,7 @@
       </div>
       <button class="outline-toggle" id="outline-toggle-btn" onclick="toggleOutlines()" style="display:none">⬡ outlines</button>
       <button class="btn btn-danger" id="new-video-btn" onclick="resetToStart()" style="display:none">New Video</button>
+      <button class="help-btn" onclick="openHelp()" title="Help (F1)">?</button>
     </div>
   </header>
 
@@ -163,6 +164,61 @@
     </div>
   </div>
 </div>
+<div id="help-modal">
+  <div class="modal-box help-modal-box">
+    <div class="help-modal-header">
+      <div class="modal-title">Help</div>
+      <button class="help-close-btn" onclick="closeHelp()">✕</button>
+    </div>
+
+    <div class="help-tabs">
+      <button class="help-tab active" data-tab="keys" onclick="switchHelpTab('keys')">Keybinds</button>
+      <button class="help-tab" data-tab="guide" onclick="switchHelpTab('guide')">Guide</button>
+    </div>
+
+    <div class="help-content">
+      <div class="help-tab-content active" id="help-tab-keys">
+        <table class="help-table">
+          <tr><th>Action</th><th>Shortcut</th></tr>
+          <tr><td>Play / Pause</td><td><kbd>Space</kbd></td></tr>
+          <tr><td>Undo</td><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td></tr>
+          <tr><td>Copy zone</td><td><kbd>Ctrl</kbd>+<kbd>C</kbd></td></tr>
+          <tr><td>Paste zone</td><td><kbd>Ctrl</kbd>+<kbd>V</kbd></td></tr>
+          <tr><td>Open help</td><td><kbd>F1</kbd></td></tr>
+        </table>
+        <div class="help-sub-title">Mouse Controls</div>
+        <table class="help-table">
+          <tr><td>Draw crop zone</td><td>Click <strong>✚ Draw new crop zone</strong>, then drag on source canvas</td></tr>
+          <tr><td>Move zone</td><td>Drag center of zone on either canvas</td></tr>
+          <tr><td>Resize zone</td><td>Drag corner / edge handles</td></tr>
+          <tr><td>Reorder zones</td><td>Drag zone cards in panel</td></tr>
+          <tr><td>Seek</td><td>Click on timeline</td></tr>
+          <tr><td>Trim clip</td><td>Drag in / out handles on timeline</td></tr>
+        </table>
+      </div>
+
+      <div class="help-tab-content" id="help-tab-guide">
+        <ol class="help-steps">
+          <li><strong>Load a video</strong> — drop a file (MP4, MOV, MKV, AVI) onto the app or click the drop zone to browse.</li>
+          <li><strong>Draw crop zones</strong> — click <em>✚ Draw new crop zone</em> then drag on the source canvas. Create one for gameplay, one for HUD, minimap, facecam, etc.</li>
+          <li><strong>Position zones on the output</strong> — drag and resize zones on the 9:16 output canvas. Use the coordinate inputs on zone cards for pixel-perfect placement.</li>
+          <li><strong>Trim the timeline</strong> — drag the green in/out handles to export only the segment you want.</li>
+          <li><strong>Manage audio</strong> — click audio track chips below the timeline to mute/unmute individual tracks (game audio, mic, etc.).</li>
+          <li><strong>Save presets</strong> — click <em>★ Save layout as preset</em> to reuse layouts across videos. Use the ↺ button to update existing presets.</li>
+          <li><strong>Export</strong> — hit <em>Export 9:16 Video</em>. FFmpeg renders locally and the file downloads automatically.</li>
+        </ol>
+        <div class="help-sub-title">Tips</div>
+        <ul class="help-tips">
+          <li>Toggle <strong>⬡ outlines</strong> in the header to show/hide zone borders on the output canvas.</li>
+          <li>Use the <strong>👁</strong> toggle on a zone card to temporarily hide it from the output without deleting it.</li>
+          <li>Undo supports up to <strong>50 steps</strong> of layout changes.</li>
+          <li>Change output resolution and FPS in the header controls.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <!-- Scripts loaded in dependency order -->

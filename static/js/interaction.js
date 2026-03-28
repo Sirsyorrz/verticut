@@ -127,23 +127,6 @@ window.addEventListener('mousemove', e => {
     const dx = panelResizing.startX - e.clientX;
     const newW = Math.max(180, Math.min(window.innerWidth * 0.65, panelResizing.startW + dx));
     panelResizing.panel.style.flex = 'none';
-    panelResizing.panel.style.width = newW + 'px'; return;
-  }
-
-  // Output canvas drag/resize
-  if (outDragging || outResizing) {
-    const r = outCanvas.getBoundingClientRect();
-    const mx = (e.clientX - r.left) / outScale, my = (e.clientY - r.top) / outScale;
-    if (outDragging && outDragZone) {
-      outDragZone.dst.x = Math.round(mx - outDragOffX);
-      outDragZone.dst.y = Math.round(my - outDragOffY);
-      applyDstSnap(outDragZone);
-      refreshZonePos(outDragZone);
-    }
-    if (outResizing && outResizeZone) {
-      const z = outResizeZone, dx = mx - outResizeStartX, dy = my - outResizeStartY;
-      const freeResize = !z.arLocked ? true : e.shiftKey;
-      const r = applyResize(outResizeOrigX, outResizeOrigY, outResizeOrigW, outResizeOrigH, outResizeHandle, dx, dy, freeResize, 40, 40, OUT_W, OUT_H);
       z.dst.x = r.x; z.dst.y = r.y; z.dst.w = r.w; z.dst.h = r.h;
       refreshZoneDst(z);
     }

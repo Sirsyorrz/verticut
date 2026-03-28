@@ -274,7 +274,7 @@ function renderZonesList() {
         <div class="zone-dot" style="background:${z.color}"></div>
         <input class="zone-name" value="${escHtml(z.label)}" onchange="renameZone('${z.id}',this.value)" onclick="event.stopPropagation()">
         <button class="zone-toggle-btn${z.disabled ? ' off' : ''}" title="${z.disabled ? 'Enable crop' : 'Disable crop'}" onclick="event.stopPropagation();toggleZoneDisabled('${z.id}')">
-          ${z.disabled ? '👁‍🗨 off' : '👁 on'}
+          ${z.disabled ? '👁 off' : '👁 on'}
         </button>
         <button class="zone-del" onclick="event.stopPropagation();removeZone('${z.id}')">✕</button>
       </div>

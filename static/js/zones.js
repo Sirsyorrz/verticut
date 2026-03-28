@@ -1,0 +1,301 @@
+// ── Zone management ───────────────────────────────────────────────────────────
+
+function addAutoGameplayZone() {
+  const targetAspect = 9 / 16;
+  let cropW, cropH;
+  if (videoInfo.width / videoInfo.height > targetAspect) {
+    cropH = videoInfo.height; cropW = Math.round(cropH * targetAspect);
+  } else {
+    cropW = videoInfo.width; cropH = Math.round(cropW / targetAspect);
+  }
+  const srcX = Math.round((videoInfo.width - cropW) / 2);
+  const srcY = Math.round((videoInfo.height - cropH) / 2);
+  const id = Date.now().toString(), color = COLORS[colorIdx % COLORS.length]; colorIdx++;
+  zones.push({ id, label: 'Gameplay', color,
+    src: { x: srcX, y: srcY, w: cropW, h: cropH },
+    dst: { x: 0, y: 0, w: OUT_W, h: OUT_H }
+  });
+  selectedZoneId = id; renderZonesList();
+}
+
+function addZone(vx, vy, vw, vh) {
+  pushUndo();
+  const names = ['Gameplay','HUD','Health Bar','Minimap','Scoreboard','Cam','Chat','Zone 8'];
+  const id = Date.now().toString(), color = COLORS[colorIdx % COLORS.length]; colorIdx++;
+  const label = names[zones.length] || `Zone ${zones.length + 1}`;
+  const aspect = vw / vh, dstW = OUT_W, dstH = Math.min(Math.round(OUT_W / aspect), OUT_H);
+  const dstY = Math.round((OUT_H - dstH) / 2);
+  zones.push({ id, label, color, disabled: false, blur: 0, src: { x: vx, y: vy, w: vw, h: vh }, dst: { x: 0, y: dstY, w: dstW, h: dstH } });
+  selectedZoneId = id; renderZonesList();
+  toast(`"${label}" added — drag to reposition`);
+}
+
+function removeZone(id) {
+  pushUndo();
+  zones = zones.filter(z => z.id !== id);
+  if (selectedZoneId === id) selectedZoneId = null;
+  renderZonesList();
+}
+
+function toggleZoneDisabled(id) {
+  pushUndo();
+  const z = zones.find(z => z.id === id);
+  if (!z) return;
+  z.disabled = !z.disabled;
+  renderZonesList();
+}
+
+function renameZone(id, val) { pushUndo(); const z = zones.find(z => z.id === id); if (z) z.label = val; }
+
+function setZoneBlur(id, val) {
+  const z = zones.find(z => z.id === id); if (!z) return;
+  z.blur = val;
+  const lbl = document.getElementById(`blur-val-${id}`);
+  if (lbl) lbl.textContent = val > 0 ? val + 'px' : 'off';
+}
+
+function copyZone() {
+  const z = zones.find(z => z.id === selectedZoneId);
+  if (!z) return toast('Select a zone first');
+  copiedZone = JSON.parse(JSON.stringify(z));
+  toast(`"${z.label}" copied — Ctrl+V to paste`);
+}
+
+function pasteZone() {
+  if (!copiedZone) return toast('Nothing copied yet');
+  pushUndo();
+  const newId = Date.now().toString() + Math.random().toString(36).slice(2);
+  const nz    = JSON.parse(JSON.stringify(copiedZone));
+  nz.id       = newId;
+  nz.label    = copiedZone.label + ' copy';
+  nz.color    = COLORS[colorIdx % COLORS.length]; colorIdx++;
+  nz.disabled = false;
+  nz.dst.x = Math.min(nz.dst.x + 24, OUT_W - nz.dst.w);
+  nz.dst.y = Math.min(nz.dst.y + 24, OUT_H - nz.dst.h);
+  zones.push(nz);
+  selectedZoneId = newId;
+  renderZonesList();
+  toast(`"${nz.label}" pasted`);
+}
+
+// ── Scale / center / reset ────────────────────────────────────────────────────
+function setSrcScale(id, pct) {
+  const z = zones.find(z => z.id === id); if (!z) return;
+  const newW = Math.round(videoInfo.width * pct / 100);
+  const newH = Math.round(newW * z.src.h / z.src.w);
+  const cx = z.src.x + z.src.w / 2, cy = z.src.y + z.src.h / 2;
+  z.src.w = newW; z.src.h = newH;
+  z.src.x = Math.round(cx - newW / 2);
+  z.src.y = Math.round(cy - newH / 2);
+  const valEl = document.getElementById('src-scale-val-' + id);
+  if (valEl) valEl.textContent = pct + '%';
+  refreshSrcInputs(z);
+}
+
+function setDstScale(id, pct) {
+  const z = zones.find(z => z.id === id); if (!z) return;
+  const newW = Math.round(OUT_W * pct / 100);
+  const newH = Math.round(newW * z.dst.h / z.dst.w);
+  const cx = z.dst.x + z.dst.w / 2, cy = z.dst.y + z.dst.h / 2;
+  z.dst.x = Math.round(cx - newW / 2);
+  z.dst.y = Math.round(cy - newH / 2);
+  z.dst.w = newW; z.dst.h = newH;
+  const valEl = document.getElementById('dst-scale-val-' + id);
+  if (valEl) valEl.textContent = pct + '%';
+  refreshZoneDst(z);
+}
+
+function centerSrc(id) {
+  const z = zones.find(z => z.id === id); if (!z) return;
+  pushUndo();
+  z.src.x = Math.max(0, Math.round((videoInfo.width - z.src.w) / 2));
+  z.src.y = Math.max(0, Math.round((videoInfo.height - z.src.h) / 2));
+  renderZonesList(); toast('SRC crop centered in video frame');
+}
+
+function centerDst(id) {
+  const z = zones.find(z => z.id === id); if (!z) return;
+  pushUndo();
+  z.dst.x = Math.max(0, Math.round((OUT_W - z.dst.w) / 2));
+  z.dst.y = Math.max(0, Math.round((OUT_H - z.dst.h) / 2));
+  refreshZoneDst(z); toast('DST crop centered in output frame');
+}
+
+function resetZoneDefaults(id) {
+  const z = zones.find(z => z.id === id); if (!z) return;
+  pushUndo();
+  const targetAspect = 9 / 16;
+  let cropW, cropH;
+  if (videoInfo.width / videoInfo.height > targetAspect) {
+    cropH = videoInfo.height; cropW = Math.round(cropH * targetAspect);
+  } else {
+    cropW = videoInfo.width; cropH = Math.round(cropW / targetAspect);
+  }
+  z.src.x = Math.round((videoInfo.width - cropW) / 2);
+  z.src.y = Math.round((videoInfo.height - cropH) / 2);
+  z.src.w = cropW; z.src.h = cropH;
+  z.dst.x = 0; z.dst.y = 0; z.dst.w = OUT_W; z.dst.h = OUT_H;
+  renderZonesList(); toast('Zone reset to centered 9:16 default');
+}
+
+// ── SRC / DST input handlers ──────────────────────────────────────────────────
+function setSrc(id, prop, rawVal) {
+  pushUndo();
+  const z = zones.find(z => z.id === id); if (!z) return;
+  const v = Math.round(+rawVal);
+  if (prop === 'x')      z.src.x = Math.max(0, Math.min(videoInfo.width - 1, v));
+  else if (prop === 'y') z.src.y = Math.max(0, Math.min(videoInfo.height - 1, v));
+  else if (prop === 'w') z.src.w = Math.max(1, Math.min(videoInfo.width - z.src.x, v));
+  else if (prop === 'h') z.src.h = Math.max(1, Math.min(videoInfo.height - z.src.y, v));
+}
+
+function setDst(id, prop, rawVal) {
+  pushUndo();
+  const z = zones.find(z => z.id === id); if (!z) return;
+  const v = Math.max(1, Math.round(+rawVal));
+  if (prop === 'w') z.dst.w = v; else if (prop === 'h') z.dst.h = v;
+}
+
+// ── Refresh helpers ───────────────────────────────────────────────────────────
+function refreshZonePos(z) {
+  const el = document.getElementById('dst-pos-' + z.id);
+  if (el) el.textContent = `${z.dst.x}, ${z.dst.y}`;
+}
+
+function refreshZoneDst(z) {
+  const wEl = document.getElementById('dstw-' + z.id), hEl = document.getElementById('dsth-' + z.id);
+  if (wEl && document.activeElement !== wEl) wEl.value = z.dst.w;
+  if (hEl && document.activeElement !== hEl) hEl.value = z.dst.h;
+  const pct = Math.round(z.dst.w / OUT_W * 100);
+  const slEl = document.getElementById('dst-scale-' + z.id), valEl = document.getElementById('dst-scale-val-' + z.id);
+  if (slEl && document.activeElement !== slEl) slEl.value = pct;
+  if (valEl) valEl.textContent = pct + '%';
+  refreshZonePos(z);
+}
+
+function refreshSrcInputs(z) {
+  const fields = [['srcx', z.src.x], ['srcy', z.src.y], ['srcw', z.src.w], ['srch', z.src.h]];
+  fields.forEach(([pre, val]) => {
+    const el = document.getElementById(`${pre}-${z.id}`);
+    if (el && document.activeElement !== el) el.value = val;
+  });
+  const pct = Math.round(z.src.w / videoInfo.width * 100);
+  const slEl = document.getElementById('src-scale-' + z.id), valEl = document.getElementById('src-scale-val-' + z.id);
+  if (slEl && document.activeElement !== slEl) slEl.value = pct;
+  if (valEl) valEl.textContent = pct + '%';
+}
+
+// ── Zone card rendering ───────────────────────────────────────────────────────
+function renderZonesList() {
+  const list = document.getElementById('zones-list'); list.innerHTML = '';
+  if (!zones.length) {
+    list.innerHTML = `<div style="font-size:.72rem;font-family:var(--font-mono);color:var(--text-dim);line-height:1.9;padding:4px">No zones yet.<br>Draw crop regions<br>on the video.</div>`;
+    return;
+  }
+  zones.forEach((z, i) => {
+    const card = document.createElement('div');
+    card.className = 'zone-card' + (selectedZoneId === z.id ? ' active' : '') + (z.disabled ? ' disabled-zone' : '');
+    card.onclick = () => { selectedZoneId = z.id; renderZonesList(); };
+    card.innerHTML = `
+      <div class="zone-header">
+        <div class="zone-drag-handle" title="Drag to reorder">⠿</div>
+        <div class="zone-dot" style="background:${z.color}"></div>
+        <input class="zone-name" value="${escHtml(z.label)}" onchange="renameZone('${z.id}',this.value)" onclick="event.stopPropagation()">
+        <button class="zone-toggle-btn${z.disabled ? ' off' : ''}" title="${z.disabled ? 'Enable crop' : 'Disable crop'}" onclick="event.stopPropagation();toggleZoneDisabled('${z.id}')">
+          ${z.disabled ? '👁‍🗨 off' : '👁 on'}
+        </button>
+        <button class="zone-del" onclick="event.stopPropagation();removeZone('${z.id}')">✕</button>
+      </div>
+      <div class="coord-section">
+        <div class="coord-label" style="color:var(--accent3)">SRC crop</div>
+        <div class="coord-inputs">
+          <span class="ci-label" style="color:var(--accent3)">X</span>
+          <input type="number" class="ci-input" id="srcx-${z.id}" value="${z.src.x}" min="0" onclick="event.stopPropagation()" onchange="setSrc('${z.id}','x',this.value)">
+          <span class="ci-sep">·</span>
+          <span class="ci-label" style="color:var(--accent3)">Y</span>
+          <input type="number" class="ci-input" id="srcy-${z.id}" value="${z.src.y}" min="0" onclick="event.stopPropagation()" onchange="setSrc('${z.id}','y',this.value)">
+        </div>
+        <div class="coord-inputs">
+          <span class="ci-label" style="color:var(--accent3)">W</span>
+          <input type="number" class="ci-input" id="srcw-${z.id}" value="${z.src.w}" min="1" onclick="event.stopPropagation()" onchange="setSrc('${z.id}','w',this.value)">
+          <span class="ci-sep">×</span>
+          <span class="ci-label" style="color:var(--accent3)">H</span>
+          <input type="number" class="ci-input" id="srch-${z.id}" value="${z.src.h}" min="1" onclick="event.stopPropagation()" onchange="setSrc('${z.id}','h',this.value)">
+          <span class="ci-label">px</span>
+        </div>
+      </div>
+      <div class="zone-actions">
+        <button class="zone-action-btn" onclick="event.stopPropagation();centerSrc('${z.id}')">&#9635; center</button>
+        <button class="zone-action-btn" onclick="event.stopPropagation();resetZoneDefaults('${z.id}')" title="Reset to centered 9:16 default">&#8635; reset 9:16</button>
+      </div>
+      <div class="scale-row">
+        <span class="ci-label" style="color:var(--accent3)">SCALE</span>
+        <input type="range" class="scale-slider src-s" id="src-scale-${z.id}" min="10" max="500" step="1"
+          value="${Math.round(z.src.w / videoInfo.width * 100)}"
+          onmousedown="pushUndo()" oninput="setSrcScale('${z.id}',+this.value)" onclick="event.stopPropagation()">
+        <span class="scale-pct" id="src-scale-val-${z.id}">${Math.round(z.src.w / videoInfo.width * 100)}%</span>
+      </div>
+      <div class="coord-section" style="margin-top:2px">
+        <div class="coord-label" style="color:var(--accent)">DST &nbsp;<span id="dst-pos-${z.id}" style="color:var(--text-dim);font-weight:400;font-size:.58rem">${z.dst.x}, ${z.dst.y}</span></div>
+        <div class="coord-inputs">
+          <span class="ci-label" style="color:var(--accent)">W</span>
+          <input type="number" class="ci-input" id="dstw-${z.id}" value="${z.dst.w}" min="1" onclick="event.stopPropagation()" onchange="setDst('${z.id}','w',this.value)">
+          <span class="ci-sep">×</span>
+          <span class="ci-label" style="color:var(--accent)">H</span>
+          <input type="number" class="ci-input" id="dsth-${z.id}" value="${z.dst.h}" min="1" onclick="event.stopPropagation()" onchange="setDst('${z.id}','h',this.value)">
+          <span class="ci-label">px</span>
+        </div>
+        <div class="scale-row">
+          <span class="ci-label" style="color:var(--accent)">SCALE</span>
+          <input type="range" class="scale-slider dst-s" id="dst-scale-${z.id}" min="10" max="500" step="1"
+            value="${Math.round(z.dst.w / OUT_W * 100)}"
+            onmousedown="pushUndo()" oninput="setDstScale('${z.id}',+this.value)" onclick="event.stopPropagation()">
+          <span class="scale-pct" id="dst-scale-val-${z.id}">${Math.round(z.dst.w / OUT_W * 100)}%</span>
+        </div>
+      </div>
+      <div class="zone-actions" style="margin-top:4px">
+        <button class="zone-action-btn" onclick="event.stopPropagation();centerDst('${z.id}')">&#9635; center dst</button>
+      </div>
+      <div class="scale-row" style="margin-top:5px;border-top:1px solid var(--border);padding-top:5px">
+        <span class="ci-label" style="color:#a78bfa">BLUR</span>
+        <input type="range" class="scale-slider blur-s" id="blur-${z.id}" min="0" max="60" step="1"
+          value="${z.blur || 0}"
+          onmousedown="pushUndo()" oninput="setZoneBlur('${z.id}',+this.value)" onclick="event.stopPropagation()">
+        <span class="scale-pct" id="blur-val-${z.id}" style="color:#a78bfa">${z.blur > 0 ? (z.blur + 'px') : 'off'}</span>
+      </div>
+    `;
+
+    // Drag-to-reorder
+    const handle = card.querySelector('.zone-drag-handle');
+    handle.addEventListener('mousedown', e => {
+      e.stopPropagation();
+      card.setAttribute('draggable', 'true');
+    });
+    card.addEventListener('dragstart', e => {
+      zoneDragSrcIdx = i;
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(() => card.classList.add('dragging'), 0);
+    });
+    card.addEventListener('dragend', () => {
+      card.removeAttribute('draggable');
+      card.classList.remove('dragging');
+      document.querySelectorAll('.zone-card').forEach(c => c.classList.remove('drag-over'));
+    });
+    card.addEventListener('dragover', e => {
+      e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+      if (zoneDragSrcIdx !== null && zoneDragSrcIdx !== i) card.classList.add('drag-over');
+    });
+    card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+    card.addEventListener('drop', e => {
+      e.preventDefault(); card.classList.remove('drag-over');
+      if (zoneDragSrcIdx === null || zoneDragSrcIdx === i) return;
+      pushUndo();
+      const moved = zones.splice(zoneDragSrcIdx, 1)[0];
+      zones.splice(i, 0, moved);
+      zoneDragSrcIdx = null;
+      renderZonesList();
+    });
+
+    list.appendChild(card);
+  });
+}

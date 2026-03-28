@@ -84,30 +84,43 @@ function applySrcSnap(z) {
   let sx = z.src.x, sy = z.src.y;
   const snapX = [0, videoInfo.width];
   const snapY = [0, videoInfo.height];
+  // Center snap points
+  const centerSnapX = [videoInfo.width / 2];
+  const centerSnapY = [videoInfo.height / 2];
   zones.forEach(oz => {
     if (oz.id === z.id) return;
     snapX.push(oz.src.x, oz.src.x + oz.src.w);
     snapY.push(oz.src.y, oz.src.y + oz.src.h);
+    centerSnapX.push(oz.src.x + oz.src.w / 2);
+    centerSnapY.push(oz.src.y + oz.src.h / 2);
   });
 
-  let bestXVal = null, bestXDist = SNAP_DIST, snapFromRight = false;
+  let bestXVal = null, bestXDist = SNAP_DIST, snapFromRight = false, snapFromCenterX = false;
   snapX.forEach(s => {
     const dL = Math.abs(sx - s);
     const dR = Math.abs(sx + w - s);
-    if (dL < bestXDist) { bestXDist = dL; bestXVal = s; snapFromRight = false; }
-    if (dR < bestXDist) { bestXDist = dR; bestXVal = s; snapFromRight = true; }
+    if (dL < bestXDist) { bestXDist = dL; bestXVal = s; snapFromRight = false; snapFromCenterX = false; }
+    if (dR < bestXDist) { bestXDist = dR; bestXVal = s; snapFromRight = true; snapFromCenterX = false; }
+  });
+  centerSnapX.forEach(s => {
+    const dC = Math.abs(sx + w / 2 - s);
+    if (dC < bestXDist) { bestXDist = dC; bestXVal = s; snapFromRight = false; snapFromCenterX = true; }
   });
 
-  let bestYVal = null, bestYDist = SNAP_DIST, snapFromBottom = false;
+  let bestYVal = null, bestYDist = SNAP_DIST, snapFromBottom = false, snapFromCenterY = false;
   snapY.forEach(s => {
     const dT = Math.abs(sy - s);
     const dB = Math.abs(sy + h - s);
-    if (dT < bestYDist) { bestYDist = dT; bestYVal = s; snapFromBottom = false; }
-    if (dB < bestYDist) { bestYDist = dB; bestYVal = s; snapFromBottom = true; }
+    if (dT < bestYDist) { bestYDist = dT; bestYVal = s; snapFromBottom = false; snapFromCenterY = false; }
+    if (dB < bestYDist) { bestYDist = dB; bestYVal = s; snapFromBottom = true; snapFromCenterY = false; }
+  });
+  centerSnapY.forEach(s => {
+    const dC = Math.abs(sy + h / 2 - s);
+    if (dC < bestYDist) { bestYDist = dC; bestYVal = s; snapFromBottom = false; snapFromCenterY = true; }
   });
 
-  if (bestXVal !== null) sx = snapFromRight ? bestXVal - w : bestXVal;
-  if (bestYVal !== null) sy = snapFromBottom ? bestYVal - h : bestYVal;
+  if (bestXVal !== null) sx = snapFromCenterX ? bestXVal - w / 2 : (snapFromRight ? bestXVal - w : bestXVal);
+  if (bestYVal !== null) sy = snapFromCenterY ? bestYVal - h / 2 : (snapFromBottom ? bestYVal - h : bestYVal);
   z.src.x = Math.max(0, Math.min(videoInfo.width - w, sx));
   z.src.y = Math.max(0, Math.min(videoInfo.height - h, sy));
 }
@@ -117,35 +130,48 @@ function applyDstSnap(z) {
   let sx = z.dst.x, sy = z.dst.y;
   const snapX = [0, OUT_W];
   const snapY = [0, OUT_H];
+  // Center snap points
+  const centerSnapX = [OUT_W / 2];
+  const centerSnapY = [OUT_H / 2];
   zones.forEach(oz => {
     if (oz.id === z.id) return;
     snapX.push(oz.dst.x, oz.dst.x + oz.dst.w);
     snapY.push(oz.dst.y, oz.dst.y + oz.dst.h);
+    centerSnapX.push(oz.dst.x + oz.dst.w / 2);
+    centerSnapY.push(oz.dst.y + oz.dst.h / 2);
   });
 
-  let bestXVal = null, bestXDist = SNAP_DIST, snapFromRight = false;
+  let bestXVal = null, bestXDist = SNAP_DIST, snapFromRight = false, snapFromCenterX = false;
   snapX.forEach(s => {
     const dL = Math.abs(sx - s);
     const dR = Math.abs(sx + w - s);
-    if (dL < bestXDist) { bestXDist = dL; bestXVal = s; snapFromRight = false; }
-    if (dR < bestXDist) { bestXDist = dR; bestXVal = s; snapFromRight = true; }
+    if (dL < bestXDist) { bestXDist = dL; bestXVal = s; snapFromRight = false; snapFromCenterX = false; }
+    if (dR < bestXDist) { bestXDist = dR; bestXVal = s; snapFromRight = true; snapFromCenterX = false; }
+  });
+  centerSnapX.forEach(s => {
+    const dC = Math.abs(sx + w / 2 - s);
+    if (dC < bestXDist) { bestXDist = dC; bestXVal = s; snapFromRight = false; snapFromCenterX = true; }
   });
 
-  let bestYVal = null, bestYDist = SNAP_DIST, snapFromBottom = false;
+  let bestYVal = null, bestYDist = SNAP_DIST, snapFromBottom = false, snapFromCenterY = false;
   snapY.forEach(s => {
     const dT = Math.abs(sy - s);
     const dB = Math.abs(sy + h - s);
-    if (dT < bestYDist) { bestYDist = dT; bestYVal = s; snapFromBottom = false; }
-    if (dB < bestYDist) { bestYDist = dB; bestYVal = s; snapFromBottom = true; }
+    if (dT < bestYDist) { bestYDist = dT; bestYVal = s; snapFromBottom = false; snapFromCenterY = false; }
+    if (dB < bestYDist) { bestYDist = dB; bestYVal = s; snapFromBottom = true; snapFromCenterY = false; }
+  });
+  centerSnapY.forEach(s => {
+    const dC = Math.abs(sy + h / 2 - s);
+    if (dC < bestYDist) { bestYDist = dC; bestYVal = s; snapFromBottom = false; snapFromCenterY = true; }
   });
 
   const lines = { x: [], y: [] };
   if (bestXVal !== null) {
-    sx = snapFromRight ? bestXVal - w : bestXVal;
+    sx = snapFromCenterX ? bestXVal - w / 2 : (snapFromRight ? bestXVal - w : bestXVal);
     lines.x.push(bestXVal);
   }
   if (bestYVal !== null) {
-    sy = snapFromBottom ? bestYVal - h : bestYVal;
+    sy = snapFromCenterY ? bestYVal - h / 2 : (snapFromBottom ? bestYVal - h : bestYVal);
     lines.y.push(bestYVal);
   }
   z.dst.x = sx; z.dst.y = sy;

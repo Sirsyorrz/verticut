@@ -1,0 +1,62 @@
+// ── Shared application state ──────────────────────────────────────────────────
+const API = '';
+const OUT_W = 1080, OUT_H = 1920;
+const COLORS = ['#00f5a0','#ff3c6e','#ffd166','#06d6a0','#118ab2','#ef476f','#a8dadc','#f4a261'];
+const SNAP_DIST = 12;
+
+let videoEl = null, videoInfo = {width:1, height:1, duration:0};
+let srcScale = 1, outScale = 1;
+let filename = null, animFrame = null;
+let zones = [], selectedZoneId = null;
+let colorIdx = 0;
+let copiedZone = null;
+
+// Audio state
+let audioTracks   = [];  // [{ idx, label, codec, channels, layout, muted }]
+let audioTrackEls = [];  // one <audio> element per track
+let audioCtx      = null;
+let analyserNodes = [];
+let gainNodes     = [];
+let vizCanvases   = [];
+
+// Source canvas interaction state
+let drawing = false, drawStartX, drawStartY;
+let srcDragging = false, srcDragZone = null, srcDragOffX = 0, srcDragOffY = 0;
+let srcResizing = false, srcResizeZone = null, srcResizeHandle = 'br';
+let srcResizeStartX, srcResizeStartY, srcResizeOrigX, srcResizeOrigY, srcResizeOrigW, srcResizeOrigH;
+
+// Output canvas interaction state
+let outDragging = false, outDragZone = null, outDragOffX = 0, outDragOffY = 0;
+let outResizing = false, outResizeZone = null, outResizeHandle = 'br';
+let outResizeStartX, outResizeStartY, outResizeOrigX, outResizeOrigY, outResizeOrigW, outResizeOrigH;
+
+// Zone list drag-to-reorder state
+let zoneDragSrcIdx = null;
+let showOutlines = true;
+
+// Trim state
+let trimStart = 0, trimEnd = null;
+let tlDragging = null; // 'head' | 'in' | 'out'
+
+// Snap lines for output canvas during drag
+let activeSnapLines = null;
+
+// Panel resize state
+let panelResizing = null;
+
+// Undo
+let undoStack = [];
+
+// Export
+let exportPollTimer = null;
+
+// ── DOM element references ────────────────────────────────────────────────────
+const srcCanvas  = document.getElementById('video-canvas');
+const ovCanvas   = document.getElementById('zone-overlay');
+const outCanvas  = document.getElementById('output-canvas');
+const srcCtx     = srcCanvas.getContext('2d');
+const ovCtx      = ovCanvas.getContext('2d');
+const outCtx     = outCanvas.getContext('2d');
+const drawGuide  = document.getElementById('draw-guide');
+const canvasCont = document.getElementById('canvas-container');
+const tlTrack    = document.getElementById('tl-track');

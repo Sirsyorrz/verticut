@@ -63,6 +63,30 @@ function applyResize(ox, oy, ow, oh, handle, dx, dy, freeResize, minW, minH, max
         y = oy + Math.round((oh - h) / 2);
         break;
     }
+  } else {
+    switch (handle) {
+      case 'tl': w = Math.max(minW, ow - dx); x = ox + ow - w; h = Math.max(minH, oh - dy); y = oy + oh - h; break;
+      case 'tc': h = Math.max(minH, oh - dy); y = oy + oh - h; break;
+      case 'tr': w = Math.max(minW, ow + dx); h = Math.max(minH, oh - dy); y = oy + oh - h; break;
+      case 'ml': w = Math.max(minW, ow - dx); x = ox + ow - w; break;
+      case 'mr': w = Math.max(minW, ow + dx); break;
+      case 'bl': w = Math.max(minW, ow - dx); x = ox + ow - w; h = Math.max(minH, oh + dy); break;
+      case 'bc': h = Math.max(minH, oh + dy); break;
+      case 'br': w = Math.max(minW, ow + dx); h = Math.max(minH, oh + dy); break;
+    }
+  }
+  return { x: Math.round(x), y: Math.round(y), w: Math.max(1, Math.round(w)), h: Math.max(1, Math.round(h)) };
+}
+
+// ── Snap helpers ──────────────────────────────────────────────────────────────
+function applySrcSnap(z) {
+  const w = z.src.w, h = z.src.h;
+  let sx = z.src.x, sy = z.src.y;
+  const snapX = [0, videoInfo.width];
+  const snapY = [0, videoInfo.height];
+  // Center snap points
+  const centerSnapX = [videoInfo.width / 2];
+  const centerSnapY = [videoInfo.height / 2];
   zones.forEach(oz => {
     if (oz.id === z.id) return;
     snapX.push(oz.src.x, oz.src.x + oz.src.w);
@@ -109,6 +133,36 @@ function applyDstSnap(z) {
   // Center snap points
   const centerSnapX = [OUT_W / 2];
   const centerSnapY = [OUT_H / 2];
+  zones.forEach(oz => {
+    if (oz.id === z.id) return;
+    snapX.push(oz.dst.x, oz.dst.x + oz.dst.w);
+    snapY.push(oz.dst.y, oz.dst.y + oz.dst.h);
+    centerSnapX.push(oz.dst.x + oz.dst.w / 2);
+    centerSnapY.push(oz.dst.y + oz.dst.h / 2);
+  });
+
+  let bestXVal = null, bestXDist = SNAP_DIST, snapFromRight = false, snapFromCenterX = false;
+  snapX.forEach(s => {
+    const dL = Math.abs(sx - s);
+    const dR = Math.abs(sx + w - s);
+    if (dL < bestXDist) { bestXDist = dL; bestXVal = s; snapFromRight = false; snapFromCenterX = false; }
+    if (dR < bestXDist) { bestXDist = dR; bestXVal = s; snapFromRight = true; snapFromCenterX = false; }
+  });
+  centerSnapX.forEach(s => {
+    const dC = Math.abs(sx + w / 2 - s);
+    if (dC < bestXDist) { bestXDist = dC; bestXVal = s; snapFromRight = false; snapFromCenterX = true; }
+  });
+
+  let bestYVal = null, bestYDist = SNAP_DIST, snapFromBottom = false, snapFromCenterY = false;
+  snapY.forEach(s => {
+    const dT = Math.abs(sy - s);
+    const dB = Math.abs(sy + h - s);
+    if (dT < bestYDist) { bestYDist = dT; bestYVal = s; snapFromBottom = false; snapFromCenterY = false; }
+    if (dB < bestYDist) { bestYDist = dB; bestYVal = s; snapFromBottom = true; snapFromCenterY = false; }
+  });
+  centerSnapY.forEach(s => {
+    const dC = Math.abs(sy + h / 2 - s);
+    if (dC < bestYDist) { bestYDist = dC; bestYVal = s; snapFromBottom = false; snapFromCenterY = true; }
   });
 
   const lines = { x: [], y: [] };

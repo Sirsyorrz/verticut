@@ -24,6 +24,23 @@ function refreshZoneCard(z) {
   refreshSrcInputs(z);
   refreshZoneDst(z);
 }
+
+function addAutoGameplayZone() {
+  const targetAspect = 9 / 16;
+  let cropW, cropH;
+  if (videoInfo.width / videoInfo.height > targetAspect) {
+    cropH = videoInfo.height; cropW = Math.round(cropH * targetAspect);
+  } else {
+    cropW = videoInfo.width; cropH = Math.round(cropW / targetAspect);
+  }
+  const srcX = Math.round((videoInfo.width - cropW) / 2);
+  const srcY = Math.round((videoInfo.height - cropH) / 2);
+  const id = Date.now().toString(), color = COLORS[colorIdx % COLORS.length]; colorIdx++;
+  zones.push({ id, label: 'Gameplay', color, arLocked: true,
+    src: { x: srcX, y: srcY, w: cropW, h: cropH },
+    dst: { x: 0, y: 0, w: OUT_W, h: OUT_H }
+  });
+  selectedZoneId = id; newZoneId = id; renderZonesList();
 }
 
 function addZone(vx, vy, vw, vh) {
@@ -61,6 +78,34 @@ function toggleArLock(id) {
   renderZonesList();
 }
 
+function setZoneBlur(id, val) {
+  const z = zones.find(z => z.id === id); if (!z) return;
+  z.blur = val;
+  const lbl = document.getElementById(`blur-val-${id}`);
+  if (lbl) lbl.textContent = val > 0 ? val + 'px' : 'off';
+}
+
+function copyZone() {
+  const z = zones.find(z => z.id === selectedZoneId);
+  if (!z) return toast('Select a zone first');
+  copiedZone = JSON.parse(JSON.stringify(z));
+  toast(`"${z.label}" copied — Ctrl+V to paste`);
+}
+
+function pasteZone() {
+  if (!copiedZone) return toast('Nothing copied yet');
+  pushUndo();
+  const newId = Date.now().toString() + Math.random().toString(36).slice(2);
+  const nz    = JSON.parse(JSON.stringify(copiedZone));
+  nz.id       = newId;
+  nz.label    = copiedZone.label + ' copy';
+  nz.color    = COLORS[colorIdx % COLORS.length]; colorIdx++;
+  nz.disabled = false;
+  nz.dst.x = Math.min(nz.dst.x + 24, OUT_W - nz.dst.w);
+  nz.dst.y = Math.min(nz.dst.y + 24, OUT_H - nz.dst.h);
+  zones.push(nz);
+  selectedZoneId = newId;
+  newZoneId = newId;
   renderZonesList();
   toast(`"${nz.label}" pasted`);
 }

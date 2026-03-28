@@ -26,6 +26,9 @@ header {
 .logo span { color: var(--accent); }
 .badge { font-family: var(--font-mono); font-size: 0.62rem; padding: 3px 8px; background: rgba(0,245,160,0.1); border: 1px solid rgba(0,245,160,0.25); border-radius: 20px; color: var(--accent); letter-spacing: 0.08em; }
 .file-info { font-size: 0.72rem; font-family: var(--font-mono); color: var(--text-dim); }
+.header-center { display: flex; align-items: center; gap: 10px; }
+.header-right { display: flex; align-items: center; gap: 8px; }
+.header-res-group { display: flex; align-items: center; gap: 4px; padding: 2px 8px; background: rgba(0,0,0,0.3); border-radius: 6px; border: 1px solid var(--border); }
 
 .workspace { display: flex; flex: 1; overflow: hidden; height: calc(100vh - 53px); }
 
@@ -43,8 +46,6 @@ header {
 #file-input { display: none; }
 
 #editor-area { flex: 3; min-width: 260px; display: none; flex-direction: column; overflow: hidden; }
-.editor-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; flex-wrap: wrap; }
-.tool-label { font-size: 0.68rem; font-family: var(--font-mono); color: var(--text-dim); letter-spacing: 0.06em; }
 .canvas-wrap { flex: 1; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 16px; background: #07070d; }
 .canvas-container { position: relative; display: inline-block; }
 #video-canvas { display: block; }
@@ -162,7 +163,7 @@ header {
 .output-canvas-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 10px; background: #07070d; min-height: 0; }
 #output-canvas { border-radius: 6px; border: 1px solid var(--border); background: #000; box-shadow: 0 4px 32px rgba(0,0,0,0.7); cursor: default; max-width: 100%; max-height: 100%; }
 
-.out-res-row { display: flex; align-items: center; gap: 4px; padding: 6px 10px; border-top: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+/* (res row moved to header) */
 .out-res-label { font-size: 0.62rem; font-family: var(--font-mono); color: var(--text-dim); }
 .out-res-input { width: 54px; padding: 3px 4px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--font-mono); font-size: 0.65rem; text-align: center; outline: none; -moz-appearance: textfield; }
 .out-res-input::-webkit-outer-spin-button, .out-res-input::-webkit-inner-spin-button { -webkit-appearance: none; }
@@ -227,10 +228,9 @@ header {
 .btn:hover { border-color: var(--accent); color: var(--accent); }
 .btn.active { border-color: var(--accent); background: rgba(0,245,160,0.1); color: var(--accent); }
 .btn-danger:hover { border-color: var(--accent2); color: var(--accent2); }
-.draw-badge { display: none; align-items: center; gap: 5px; padding: 3px 9px; background: rgba(0,245,160,0.1); border: 1px solid rgba(0,245,160,0.3); border-radius: 20px; font-size: 0.67rem; font-family: var(--font-mono); color: var(--accent); animation: pulse 1.5s infinite; }
-.draw-badge.show { display: flex; }
-@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
-.draw-dot { width: 5px; height: 5px; background: var(--accent); border-radius: 50%; }
+.canvas-hint { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; text-align: center; z-index: 5; }
+.canvas-hint-text { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-dim); opacity: 0.5; line-height: 1.8; }
+.canvas-hint-icon { font-size: 1.4rem; margin-bottom: 4px; opacity: 0.3; }
 
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }

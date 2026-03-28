@@ -46,6 +46,7 @@ header {
 #file-input { display: none; }
 
 #editor-area { flex: 3; min-width: 260px; display: none; flex-direction: column; overflow: hidden; }
+.input-header { padding: 7px 10px 7px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; display: flex; align-items: center; background: var(--surface); }
 .canvas-wrap { flex: 1; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 16px; background: #07070d; }
 .canvas-container { position: relative; display: inline-block; }
 #video-canvas { display: block; }

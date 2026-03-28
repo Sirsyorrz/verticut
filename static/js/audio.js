@@ -4,7 +4,7 @@ function setupTrackAudioEls() {
   audioTrackEls.forEach(a => { a.pause(); try { a.remove(); } catch {} });
   audioTrackEls = [];
   if (audioCtx) { try { audioCtx.close(); } catch {} audioCtx = null; }
-  analyserNodes = []; gainNodes = []; vizCanvases = [];
+  analyserNodes = []; gainNodes = [];
 
   if (!videoEl || !audioTracks.length || !filename) return;
 

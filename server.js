@@ -196,8 +196,10 @@ function startServer(port, userDataPath) {
         const sy = parseInt(z.src_y) + padT;
         const sw = parseInt(z.src_w), sh = parseInt(z.src_h);
         const dw = parseInt(z.dst_w), dh = parseInt(z.dst_h);
+        const blurSigma = parseFloat(z.blur) || 0;
+        const blurFilter = blurSigma > 0 ? `,gblur=sigma=${blurSigma}` : '';
         filterParts.push(
-          `[0:v]${trimFilter}${padFilter}crop=${sw}:${sh}:${sx}:${sy},scale=${dw}:${dh}[z${i}]`
+          `[0:v]${trimFilter}${padFilter}crop=${sw}:${sh}:${sx}:${sy},scale=${dw}:${dh}${blurFilter}[z${i}]`
         );
       }
 

@@ -12,9 +12,21 @@
 <div id="app">
   <header>
     <div class="logo"><div class="logo-icon"></div>Verti<span>Cut</span></div>
-    <div style="display:flex;align-items:center;gap:10px">
-      <div class="badge">9:16 OVERLAY EDITOR</div>
+    <div class="header-center" id="header-info">
       <span class="file-info" id="file-info-label"></span>
+    </div>
+    <div class="header-right" id="header-controls">
+      <div class="header-res-group" id="header-res" style="display:none">
+        <span class="out-res-label">RES</span>
+        <input type="number" class="out-res-input" id="out-w" value="1080" min="1" max="7680">
+        <span class="out-res-sep">×</span>
+        <input type="number" class="out-res-input" id="out-h" value="1920" min="1" max="7680">
+        <div class="out-res-divider"></div>
+        <span class="out-res-label">FPS</span>
+        <input type="number" class="out-res-input" id="out-fps" value="60" min="1" max="240" style="width:44px">
+      </div>
+      <button class="outline-toggle" id="outline-toggle-btn" onclick="toggleOutlines()" style="display:none">⬡ outlines</button>
+      <button class="btn btn-danger" id="new-video-btn" onclick="resetToStart()" style="display:none">✕ New</button>
     </div>
   </header>
 
@@ -27,13 +39,7 @@
     </div>
 
     <div id="editor-area">
-      <div class="editor-toolbar">
-        <span class="tool-label">MODE</span>
-        <button class="btn active" id="btn-draw" onclick="setMode('draw')">✚ Crop Zone</button>
-        <div class="draw-badge" id="draw-badge"><div class="draw-dot"></div>Draw on video</div>
-        <div style="flex:1"></div>
-        <button class="btn btn-danger" onclick="resetToStart()">New Video</button>
-      </div>
+
       <div class="canvas-wrap" id="canvas-wrap">
         <div class="canvas-container" id="canvas-container">
           <canvas id="video-canvas"></canvas>
@@ -69,18 +75,9 @@
     <div class="output-panel">
       <div class="output-header">
         <div class="section-title" style="flex:1">Output · 9:16</div>
-        <button class="outline-toggle" id="outline-toggle-btn" onclick="toggleOutlines()">⬡ outlines</button>
       </div>
       <div class="output-canvas-wrap"><canvas id="output-canvas"></canvas></div>
-      <div class="out-res-row">
-        <span class="out-res-label">RES</span>
-        <input type="number" class="out-res-input" id="out-w" value="1080" min="1" max="7680">
-        <span class="out-res-sep">×</span>
-        <input type="number" class="out-res-input" id="out-h" value="1920" min="1" max="7680">
-        <div class="out-res-divider"></div>
-        <span class="out-res-label">FPS</span>
-        <input type="number" class="out-res-input" id="out-fps" value="60" min="1" max="240" style="width:44px">
-      </div>
+
       <div class="export-section">
         <button class="export-btn" id="export-btn" onclick="exportVideo()">Export 9:16 Video</button>
         <div class="progress-wrap" id="progress-wrap">

@@ -17,6 +17,17 @@ function setupCanvases() {
 
 function drawOverlay() {
   ovCtx.clearRect(0, 0, ovCanvas.width, ovCanvas.height);
+  if (zones.length === 0 && videoEl) {
+    ovCtx.save();
+    ovCtx.fillStyle = '#ffffff';
+    ovCtx.globalAlpha = 0.25;
+    ovCtx.font = '11px JetBrains Mono, monospace';
+    ovCtx.textAlign = 'center';
+    ovCtx.fillText('drag to draw a zone', ovCanvas.width / 2, ovCanvas.height / 2);
+    ovCtx.textAlign = 'left';
+    ovCtx.globalAlpha = 1;
+    ovCtx.restore();
+  }
   zones.forEach((z, i) => {
     const sx = z.src.x * srcScale, sy = z.src.y * srcScale, sw = z.src.w * srcScale, sh = z.src.h * srcScale;
     const isSelected = selectedZoneId === z.id;

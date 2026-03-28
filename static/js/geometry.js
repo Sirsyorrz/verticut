@@ -23,11 +23,12 @@ function hitHandle(pts, cx, cy, HP) {
   return null;
 }
 
-function applyResize(ox, oy, ow, oh, handle, dx, dy, shiftKey, minW, minH, maxW, maxH) {
+function applyResize(ox, oy, ow, oh, handle, dx, dy, freeResize, minW, minH, maxW, maxH) {
   let x = ox, y = oy, w = ow, h = oh;
   const aspect = ow / oh;
   const isCorner = handle === 'tl' || handle === 'tr' || handle === 'bl' || handle === 'br';
-  if (isCorner && !shiftKey) {
+  const isEdge = handle === 'tc' || handle === 'bc' || handle === 'ml' || handle === 'mr';
+  if (isCorner && !freeResize) {
     let gx = dx, gy = dy;
     if (handle === 'tl')      { gx = -dx; gy = -dy; }
     else if (handle === 'tr') { gy = -dy; }
@@ -38,6 +39,30 @@ function applyResize(ox, oy, ow, oh, handle, dx, dy, shiftKey, minW, minH, maxW,
     if (handle === 'tl')      { x = ox + ow - w; y = oy + oh - h; }
     else if (handle === 'tr') { y = oy + oh - h; }
     else if (handle === 'bl') { x = ox + ow - w; }
+  } else if (isEdge && !freeResize) {
+    // Edge handles with AR lock: adjust both dimensions proportionally
+    switch (handle) {
+      case 'tc':
+        h = Math.max(minH, oh - dy); y = oy + oh - h;
+        w = Math.max(minW, Math.round(h * aspect));
+        x = ox + Math.round((ow - w) / 2);
+        break;
+      case 'bc':
+        h = Math.max(minH, oh + dy);
+        w = Math.max(minW, Math.round(h * aspect));
+        x = ox + Math.round((ow - w) / 2);
+        break;
+      case 'ml':
+        w = Math.max(minW, ow - dx); x = ox + ow - w;
+        h = Math.max(minH, Math.round(w / aspect));
+        y = oy + Math.round((oh - h) / 2);
+        break;
+      case 'mr':
+        w = Math.max(minW, ow + dx);
+        h = Math.max(minH, Math.round(w / aspect));
+        y = oy + Math.round((oh - h) / 2);
+        break;
+    }
   } else {
     switch (handle) {
       case 'tl': w = Math.max(minW, ow - dx); x = ox + ow - w; h = Math.max(minH, oh - dy); y = oy + oh - h; break;

@@ -148,7 +148,8 @@ window.addEventListener('mousemove', e => {
     }
     if (outResizing && outResizeZone) {
       const z = outResizeZone, dx = mx - outResizeStartX, dy = my - outResizeStartY;
-      const r = applyResize(outResizeOrigX, outResizeOrigY, outResizeOrigW, outResizeOrigH, outResizeHandle, dx, dy, e.shiftKey, 40, 40, OUT_W, OUT_H);
+      const freeResize = !z.arLocked ? true : e.shiftKey;
+      const r = applyResize(outResizeOrigX, outResizeOrigY, outResizeOrigW, outResizeOrigH, outResizeHandle, dx, dy, freeResize, 40, 40, OUT_W, OUT_H);
       z.dst.x = r.x; z.dst.y = r.y; z.dst.w = r.w; z.dst.h = r.h;
       refreshZoneDst(z);
     }
@@ -168,9 +169,15 @@ window.addEventListener('mousemove', e => {
     }
     if (srcResizing && srcResizeZone) {
       const z = srcResizeZone, dx = mx - srcResizeStartX, dy = my - srcResizeStartY;
-      const r = applyResize(srcResizeOrigX, srcResizeOrigY, srcResizeOrigW, srcResizeOrigH, srcResizeHandle, dx, dy, e.shiftKey, 20, 20, videoInfo.width, videoInfo.height);
+      const freeResize = !z.arLocked ? true : e.shiftKey;
+      const r = applyResize(srcResizeOrigX, srcResizeOrigY, srcResizeOrigW, srcResizeOrigH, srcResizeHandle, dx, dy, freeResize, 20, 20, videoInfo.width, videoInfo.height);
       z.src.x = r.x; z.src.y = r.y; z.src.w = r.w; z.src.h = r.h;
       refreshSrcInputs(z);
+      if (z.arLocked) {
+        const newAspect = z.src.w / z.src.h;
+        z.dst.h = Math.round(z.dst.w / newAspect);
+        refreshZoneDst(z);
+      }
     }
     return;
   }

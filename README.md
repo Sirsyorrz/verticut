@@ -12,6 +12,14 @@ Grab the latest portable `.exe` from [**Releases**](https://github.com/Sirsyorrz
 
 ---
 
+## Screenshots
+
+![Drop zone](static/screenshot-empty.png)
+
+![Editor with zones](static/screenshot-editor.png)
+
+---
+
 ## Features
 
 - **Multi-zone layout** — draw multiple crop regions on your source video and position them freely on a 9:16 canvas

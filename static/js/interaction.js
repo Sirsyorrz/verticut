@@ -44,7 +44,7 @@ canvasCont.addEventListener('mousedown', e => {
       srcResizeStartX = vidX; srcResizeStartY = vidY;
       srcResizeOrigX = z.src.x; srcResizeOrigY = z.src.y;
       srcResizeOrigW = z.src.w; srcResizeOrigH = z.src.h;
-      selectedZoneId = z.id; renderZonesList(); return;
+      selectZone(z.id); return;
     }
   }
 
@@ -55,7 +55,7 @@ canvasCont.addEventListener('mousedown', e => {
       pushUndo();
       srcDragging = true; srcDragZone = z;
       srcDragOffX = vidX - z.src.x; srcDragOffY = vidY - z.src.y;
-      selectedZoneId = z.id; renderZonesList(); return;
+      selectZone(z.id); return;
     }
   }
 
@@ -63,7 +63,7 @@ canvasCont.addEventListener('mousedown', e => {
     drawStartX = canvasX; drawStartY = canvasY; drawing = true;
     drawGuide.style.cssText = `display:block;left:${canvasX}px;top:${canvasY}px;width:0;height:0;position:absolute;z-index:10;border:2px dashed var(--accent);background:rgba(0,245,160,0.08);`;
   } else {
-    selectedZoneId = null; renderZonesList();
+    selectZone(null);
   }
 });
 
@@ -97,7 +97,7 @@ outCanvas.addEventListener('mousedown', e => {
       outResizing = true; outResizeZone = z; outResizeHandle = hit;
       outResizeStartX = mx; outResizeStartY = my;
       outResizeOrigX = x; outResizeOrigY = y; outResizeOrigW = w; outResizeOrigH = h;
-      selectedZoneId = z.id; renderZonesList(); return;
+      selectZone(z.id); return;
     }
   }
   for (let i = zones.length - 1; i >= 0; i--) {
@@ -105,10 +105,10 @@ outCanvas.addEventListener('mousedown', e => {
     if (mx >= x && mx <= x + w && my >= y && my <= y + h) {
       pushUndo();
       outDragging = true; outDragZone = z; outDragOffX = mx - x; outDragOffY = my - y;
-      selectedZoneId = z.id; renderZonesList(); return;
+      selectZone(z.id); return;
     }
   }
-  selectedZoneId = null; renderZonesList();
+  selectZone(null);
 });
 
 // ── Unified mousemove / mouseup ───────────────────────────────────────────────

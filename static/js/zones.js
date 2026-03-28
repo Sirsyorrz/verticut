@@ -1,4 +1,29 @@
 // ── Zone management ───────────────────────────────────────────────────────────
+let newZoneId = null;
+
+function selectZone(id) {
+  if (selectedZoneId === id) return;
+  const oldCard = selectedZoneId ? document.querySelector(`.zone-card[data-zone-id="${selectedZoneId}"]`) : null;
+  selectedZoneId = id;
+  const newCard = id ? document.querySelector(`.zone-card[data-zone-id="${id}"]`) : null;
+  if (oldCard) oldCard.classList.remove('active');
+  if (newCard) newCard.classList.add('active');
+}
+
+function refreshZoneCard(z) {
+  const card = document.querySelector(`.zone-card[data-zone-id="${z.id}"]`);
+  if (!card) return;
+  card.classList.toggle('disabled-zone', !!z.disabled);
+  card.classList.toggle('active', selectedZoneId === z.id);
+  const toggleBtn = card.querySelector('.zone-toggle-btn');
+  if (toggleBtn) {
+    toggleBtn.classList.toggle('off', !!z.disabled);
+    toggleBtn.innerHTML = z.disabled ? '👁‍🗨 off' : '👁 on';
+    toggleBtn.title = z.disabled ? 'Enable crop' : 'Disable crop';
+  }
+  refreshSrcInputs(z);
+  refreshZoneDst(z);
+}
 
 function addAutoGameplayZone() {
   const targetAspect = 9 / 16;
@@ -15,7 +40,7 @@ function addAutoGameplayZone() {
     src: { x: srcX, y: srcY, w: cropW, h: cropH },
     dst: { x: 0, y: 0, w: OUT_W, h: OUT_H }
   });
-  selectedZoneId = id; renderZonesList();
+  selectedZoneId = id; newZoneId = id; renderZonesList();
 }
 
 function addZone(vx, vy, vw, vh) {
@@ -26,7 +51,7 @@ function addZone(vx, vy, vw, vh) {
   const aspect = vw / vh, dstW = OUT_W, dstH = Math.min(Math.round(OUT_W / aspect), OUT_H);
   const dstY = Math.round((OUT_H - dstH) / 2);
   zones.push({ id, label, color, disabled: false, blur: 0, src: { x: vx, y: vy, w: vw, h: vh }, dst: { x: 0, y: dstY, w: dstW, h: dstH } });
-  selectedZoneId = id; renderZonesList();
+  selectedZoneId = id; newZoneId = id; renderZonesList();
   toast(`"${label}" added — drag to reposition`);
 }
 
@@ -42,7 +67,7 @@ function toggleZoneDisabled(id) {
   const z = zones.find(z => z.id === id);
   if (!z) return;
   z.disabled = !z.disabled;
-  renderZonesList();
+  refreshZoneCard(z);
 }
 
 function renameZone(id, val) { pushUndo(); const z = zones.find(z => z.id === id); if (z) z.label = val; }
@@ -74,6 +99,7 @@ function pasteZone() {
   nz.dst.y = Math.min(nz.dst.y + 24, OUT_H - nz.dst.h);
   zones.push(nz);
   selectedZoneId = newId;
+  newZoneId = newId;
   renderZonesList();
   toast(`"${nz.label}" pasted`);
 }
@@ -110,7 +136,7 @@ function centerSrc(id) {
   pushUndo();
   z.src.x = Math.max(0, Math.round((videoInfo.width - z.src.w) / 2));
   z.src.y = Math.max(0, Math.round((videoInfo.height - z.src.h) / 2));
-  renderZonesList(); toast('SRC crop centered in video frame');
+  refreshSrcInputs(z); toast('SRC crop centered in video frame');
 }
 
 function centerDst(id) {
@@ -135,7 +161,7 @@ function resetZoneDefaults(id) {
   z.src.y = Math.round((videoInfo.height - cropH) / 2);
   z.src.w = cropW; z.src.h = cropH;
   z.dst.x = 0; z.dst.y = 0; z.dst.w = OUT_W; z.dst.h = OUT_H;
-  renderZonesList(); toast('Zone reset to centered 9:16 default');
+  refreshZoneCard(z); toast('Zone reset to centered 9:16 default');
 }
 
 // ── SRC / DST input handlers ──────────────────────────────────────────────────
@@ -194,8 +220,9 @@ function renderZonesList() {
   }
   zones.forEach((z, i) => {
     const card = document.createElement('div');
-    card.className = 'zone-card' + (selectedZoneId === z.id ? ' active' : '') + (z.disabled ? ' disabled-zone' : '');
-    card.onclick = () => { selectedZoneId = z.id; renderZonesList(); };
+    card.className = 'zone-card' + (selectedZoneId === z.id ? ' active' : '') + (z.disabled ? ' disabled-zone' : '') + (newZoneId === z.id ? ' zone-new' : '');
+    card.setAttribute('data-zone-id', z.id);
+    card.onclick = () => { selectZone(z.id); };
     card.innerHTML = `
       <div class="zone-header">
         <div class="zone-drag-handle" title="Drag to reorder">⠿</div>
@@ -298,4 +325,5 @@ function renderZonesList() {
 
     list.appendChild(card);
   });
+  newZoneId = null;
 }

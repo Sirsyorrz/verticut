@@ -133,6 +133,7 @@ window.addEventListener('mousemove', e => {
   if (panelResizing) {
     const dx = panelResizing.startX - e.clientX;
     const newW = Math.max(180, Math.min(window.innerWidth * 0.65, panelResizing.startW + dx));
+    panelResizing.panel.style.flex = 'none';
     panelResizing.panel.style.width = newW + 'px'; return;
   }
 

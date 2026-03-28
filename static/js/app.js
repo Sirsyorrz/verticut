@@ -8,6 +8,20 @@ function resetToStart() {
   trimStart = 0; trimEnd = null; tlDragging = null;
   undoStack = [];
   lastExportedFile = null;
+  audioTracks = [];
+  audioTrackEls.forEach(a => { a.pause(); try { a.remove(); } catch {} });
+  audioTrackEls = [];
+  if (audioCtx) { try { audioCtx.close(); } catch {} audioCtx = null; }
+  analyserNodes = []; gainNodes = []; vizCanvases = [];
+  renderAudioTracks();
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  if (exportPollTimer) { clearInterval(exportPollTimer); exportPollTimer = null; }
+  document.getElementById('editor-area').style.display = 'none';
+  document.getElementById('drop-zone').style.display = 'flex';
+  document.getElementById('file-info-label').textContent = '';
+  document.getElementById('header-res').style.display = 'none';
+  document.getElementById('outline-toggle-btn').style.display = 'none';
+  document.getElementById('new-video-btn').style.display = 'none';
   document.getElementById('play-btn').textContent = '▶';
   document.getElementById('file-input').value = '';
   resetExportUI(document.getElementById('export-btn'), document.getElementById('progress-wrap'));
@@ -56,4 +70,13 @@ async function handleFile(file) {
   document.getElementById('header-res').style.display = 'flex';
   document.getElementById('outline-toggle-btn').style.display = '';
   document.getElementById('new-video-btn').style.display = '';
+}
+
+// ── Preset modal event listeners ──────────────────────────────────────────────
+document.getElementById('preset-name-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') confirmSavePreset(); if (e.key === 'Escape') closePresetModal();
+});
+document.getElementById('preset-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closePresetModal(); });
+
+// ── Init ──────────────────────────────────────────────────────────────────────
 renderPresetsList();

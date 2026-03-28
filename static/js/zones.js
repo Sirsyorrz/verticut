@@ -36,7 +36,7 @@ function addAutoGameplayZone() {
   const srcX = Math.round((videoInfo.width - cropW) / 2);
   const srcY = Math.round((videoInfo.height - cropH) / 2);
   const id = Date.now().toString(), color = COLORS[colorIdx % COLORS.length]; colorIdx++;
-  zones.push({ id, label: 'Gameplay', color,
+  zones.push({ id, label: 'Gameplay', color, arLocked: true,
     src: { x: srcX, y: srcY, w: cropW, h: cropH },
     dst: { x: 0, y: 0, w: OUT_W, h: OUT_H }
   });
@@ -50,7 +50,7 @@ function addZone(vx, vy, vw, vh) {
   const label = names[zones.length] || `Zone ${zones.length + 1}`;
   const aspect = vw / vh, dstW = OUT_W, dstH = Math.min(Math.round(OUT_W / aspect), OUT_H);
   const dstY = Math.round((OUT_H - dstH) / 2);
-  zones.push({ id, label, color, disabled: false, blur: 0, src: { x: vx, y: vy, w: vw, h: vh }, dst: { x: 0, y: dstY, w: dstW, h: dstH } });
+  zones.push({ id, label, color, disabled: false, blur: 0, arLocked: true, src: { x: vx, y: vy, w: vw, h: vh }, dst: { x: 0, y: dstY, w: dstW, h: dstH } });
   selectedZoneId = id; newZoneId = id; renderZonesList();
   toast(`"${label}" added — drag to reposition`);
 }
@@ -71,6 +71,12 @@ function toggleZoneDisabled(id) {
 }
 
 function renameZone(id, val) { pushUndo(); const z = zones.find(z => z.id === id); if (z) z.label = val; }
+
+function toggleArLock(id) {
+  const z = zones.find(z => z.id === id); if (!z) return;
+  z.arLocked = !z.arLocked;
+  renderZonesList();
+}
 
 function setZoneBlur(id, val) {
   const z = zones.find(z => z.id === id); if (!z) return;
@@ -171,15 +177,54 @@ function setSrc(id, prop, rawVal) {
   const v = Math.round(+rawVal);
   if (prop === 'x')      z.src.x = Math.max(0, Math.min(videoInfo.width - 1, v));
   else if (prop === 'y') z.src.y = Math.max(0, Math.min(videoInfo.height - 1, v));
-  else if (prop === 'w') z.src.w = Math.max(1, Math.min(videoInfo.width - z.src.x, v));
-  else if (prop === 'h') z.src.h = Math.max(1, Math.min(videoInfo.height - z.src.y, v));
+  else if (prop === 'w') {
+    const oldAspect = z.src.w / z.src.h;
+    z.src.w = Math.max(1, Math.min(videoInfo.width - z.src.x, v));
+    if (z.arLocked) {
+      z.src.h = Math.max(1, Math.min(videoInfo.height - z.src.y, Math.round(z.src.w / oldAspect)));
+      const hEl = document.getElementById('srch-' + id);
+      if (hEl && document.activeElement !== hEl) hEl.value = z.src.h;
+      // Propagate to dst
+      const newAspect = z.src.w / z.src.h;
+      z.dst.h = Math.round(z.dst.w / newAspect);
+      refreshZoneDst(z);
+    }
+  } else if (prop === 'h') {
+    const oldAspect = z.src.w / z.src.h;
+    z.src.h = Math.max(1, Math.min(videoInfo.height - z.src.y, v));
+    if (z.arLocked) {
+      z.src.w = Math.max(1, Math.min(videoInfo.width - z.src.x, Math.round(z.src.h * oldAspect)));
+      const wEl = document.getElementById('srcw-' + id);
+      if (wEl && document.activeElement !== wEl) wEl.value = z.src.w;
+      // Propagate to dst
+      const newAspect = z.src.w / z.src.h;
+      z.dst.h = Math.round(z.dst.w / newAspect);
+      refreshZoneDst(z);
+    }
+  }
 }
 
 function setDst(id, prop, rawVal) {
   pushUndo();
   const z = zones.find(z => z.id === id); if (!z) return;
   const v = Math.max(1, Math.round(+rawVal));
-  if (prop === 'w') z.dst.w = v; else if (prop === 'h') z.dst.h = v;
+  if (prop === 'w') {
+    const oldAspect = z.dst.w / z.dst.h;
+    z.dst.w = v;
+    if (z.arLocked) {
+      z.dst.h = Math.max(1, Math.round(z.dst.w / oldAspect));
+      const hEl = document.getElementById('dsth-' + id);
+      if (hEl && document.activeElement !== hEl) hEl.value = z.dst.h;
+    }
+  } else if (prop === 'h') {
+    const oldAspect = z.dst.w / z.dst.h;
+    z.dst.h = v;
+    if (z.arLocked) {
+      z.dst.w = Math.max(1, Math.round(z.dst.h * oldAspect));
+      const wEl = document.getElementById('dstw-' + id);
+      if (wEl && document.activeElement !== wEl) wEl.value = z.dst.w;
+    }
+  }
 }
 
 // ── Refresh helpers ───────────────────────────────────────────────────────────
@@ -245,7 +290,9 @@ function renderZonesList() {
         <div class="coord-inputs">
           <span class="ci-label" style="color:var(--accent3)">W</span>
           <input type="number" class="ci-input" id="srcw-${z.id}" value="${z.src.w}" min="1" onclick="event.stopPropagation()" onchange="setSrc('${z.id}','w',this.value)">
-          <span class="ci-sep">×</span>
+          <button class="ar-link-btn ${z.arLocked ? 'locked' : 'unlocked'}" title="${z.arLocked ? 'Aspect ratio locked — click to unlock' : 'Aspect ratio unlocked — click to lock'}" onclick="event.stopPropagation();toggleArLock('${z.id}')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${z.arLocked ? '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>' : '<path d="M16.5 13a5 5 0 0 1-1.46 3.54l-3 3a5 5 0 0 1-7.07-7.07l1.71-1.71"/><path d="M7.5 11a5 5 0 0 1 1.46-3.54l3-3a5 5 0 0 1 7.07 7.07l-1.71 1.71"/><line x1="2" y1="2" x2="22" y2="22"/>'}</svg>
+          </button>
           <span class="ci-label" style="color:var(--accent3)">H</span>
           <input type="number" class="ci-input" id="srch-${z.id}" value="${z.src.h}" min="1" onclick="event.stopPropagation()" onchange="setSrc('${z.id}','h',this.value)">
           <span class="ci-label">px</span>
@@ -267,7 +314,9 @@ function renderZonesList() {
         <div class="coord-inputs">
           <span class="ci-label" style="color:var(--accent)">W</span>
           <input type="number" class="ci-input" id="dstw-${z.id}" value="${z.dst.w}" min="1" onclick="event.stopPropagation()" onchange="setDst('${z.id}','w',this.value)">
-          <span class="ci-sep">×</span>
+          <button class="ar-link-btn ${z.arLocked ? 'locked' : 'unlocked'}" title="${z.arLocked ? 'Aspect ratio locked — click to unlock' : 'Aspect ratio unlocked — click to lock'}" onclick="event.stopPropagation();toggleArLock('${z.id}')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${z.arLocked ? '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>' : '<path d="M16.5 13a5 5 0 0 1-1.46 3.54l-3 3a5 5 0 0 1-7.07-7.07l1.71-1.71"/><path d="M7.5 11a5 5 0 0 1 1.46-3.54l3-3a5 5 0 0 1 7.07 7.07l-1.71 1.71"/><line x1="2" y1="2" x2="22" y2="22"/>'}</svg>
+          </button>
           <span class="ci-label" style="color:var(--accent)">H</span>
           <input type="number" class="ci-input" id="dsth-${z.id}" value="${z.dst.h}" min="1" onclick="event.stopPropagation()" onchange="setDst('${z.id}','h',this.value)">
           <span class="ci-label">px</span>

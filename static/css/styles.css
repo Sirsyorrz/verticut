@@ -122,6 +122,12 @@ header {
 .ci-input::-webkit-outer-spin-button, .ci-input::-webkit-inner-spin-button { -webkit-appearance: none; }
 .ci-input:focus { border-color: var(--accent); color: var(--accent); }
 .ci-sep { font-size: 0.62rem; color: var(--border); padding: 0 1px; }
+.ar-link-btn { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; padding: 0; background: none; border: none; cursor: pointer; border-radius: 3px; transition: all 0.15s; flex-shrink: 0; }
+.ar-link-btn.locked { color: var(--accent); }
+.ar-link-btn.unlocked { color: var(--text-dim); opacity: 0.5; }
+.ar-link-btn:hover { background: rgba(255,255,255,0.06); }
+.ar-link-btn.locked:hover { color: var(--accent); opacity: 0.8; }
+.ar-link-btn.unlocked:hover { color: var(--text); opacity: 0.8; }
 .zone-actions { display: flex; gap: 4px; margin-top: 6px; }
 .zone-action-btn { flex: 1; background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--text-dim); font-family: var(--font-mono); font-size: 0.6rem; padding: 3px 0; cursor: pointer; transition: all 0.15s; text-align: center; }
 .zone-action-btn:hover { border-color: var(--accent); color: var(--accent); }

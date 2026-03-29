@@ -12,12 +12,19 @@ document.querySelectorAll('.resize-handle').forEach(handle => {
   });
 });
 
-// ── Outlines toggle ───────────────────────────────────────────────────────────
-function toggleOutlines() {
-  showOutlines = !showOutlines;
-  const btn = document.getElementById('outline-toggle-btn');
-  btn.classList.toggle('off', !showOutlines);
-  btn.textContent = showOutlines ? '⬡ outlines' : '⬢ outlines';
+// ── Outlines toggles ──────────────────────────────────────────────────────────
+function toggleInputOutlines() {
+  showInputOutlines = !showInputOutlines;
+  const btn = document.getElementById('input-outline-btn');
+  btn.classList.toggle('off', !showInputOutlines);
+  btn.textContent = showInputOutlines ? '⬡ outlines' : '⬢ outlines';
+}
+
+function toggleOutputOutlines() {
+  showOutputOutlines = !showOutputOutlines;
+  const btn = document.getElementById('output-outline-btn');
+  btn.classList.toggle('off', !showOutputOutlines);
+  btn.textContent = showOutputOutlines ? '⬡ outlines' : '⬢ outlines';
 }
 
 // ── HUD probe mode toggle ─────────────────────────────────────────────────────

@@ -20,7 +20,8 @@ function resetToStart() {
   document.getElementById('drop-zone').style.display = 'flex';
   document.getElementById('file-info-label').textContent = '';
   document.getElementById('header-res').style.display = 'none';
-  document.getElementById('outline-toggle-btn').style.display = 'none';
+  document.getElementById('input-outline-btn').style.display = 'none';
+  document.getElementById('output-outline-btn').style.display = 'none';
   document.getElementById('hud-probe-btn').style.display = 'none';
   document.getElementById('new-video-btn').style.display = 'none';
   document.getElementById('play-btn').textContent = '▶';
@@ -72,7 +73,8 @@ async function handleFile(file) {
   dz.style.display = 'none';
   document.getElementById('editor-area').style.display = 'flex';
   document.getElementById('header-res').style.display = 'flex';
-  document.getElementById('outline-toggle-btn').style.display = '';
+  document.getElementById('input-outline-btn').style.display = '';
+  document.getElementById('output-outline-btn').style.display = '';
   document.getElementById('hud-probe-btn').style.display = '';
   document.getElementById('new-video-btn').style.display = '';
 }

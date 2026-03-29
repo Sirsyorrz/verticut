@@ -25,7 +25,7 @@
         <span class="out-res-label">FPS</span>
         <input type="number" class="out-res-input" id="out-fps" value="60" min="1" max="240" style="width:44px">
       </div>
-      <button class="outline-toggle" id="outline-toggle-btn" onclick="toggleOutlines()" style="display:none">⬡ outlines</button>
+
       <button class="outline-toggle" id="hud-probe-btn" onclick="toggleHudProbe()" style="display:none">⊙ HUD probe</button>
       <button class="btn btn-danger" id="new-video-btn" onclick="resetToStart()" style="display:none">New Video</button>
       <button class="help-btn" onclick="openHelp()" title="Help (F1)">?</button>
@@ -44,6 +44,7 @@
 
       <div class="input-header">
         <div class="section-title" style="flex:1">Input · 16:9</div>
+        <button class="outline-toggle" id="input-outline-btn" onclick="toggleInputOutlines()" style="display:none">⬡ outlines</button>
       </div>
       <div class="canvas-wrap" id="canvas-wrap">
         <div class="canvas-container" id="canvas-container">
@@ -80,6 +81,7 @@
     <div class="output-panel">
       <div class="output-header">
         <div class="section-title" style="flex:1">Output · 9:16</div>
+        <button class="outline-toggle" id="output-outline-btn" onclick="toggleOutputOutlines()" style="display:none">⬡ outlines</button>
       </div>
       <div class="output-canvas-wrap"><canvas id="output-canvas"></canvas></div>
 
@@ -180,7 +182,7 @@
         </ol>
         <div class="help-sub-title">Tips</div>
         <ul class="help-tips">
-          <li>Toggle <strong>⬡ outlines</strong> in the header to show/hide zone borders on the output canvas.</li>
+          <li>Toggle <strong>⬡ outlines</strong> on the input or output panel header to show/hide zone borders on that canvas.</li>
           <li>Use the <strong>👁</strong> toggle on a zone card to temporarily hide it from the output without deleting it.</li>
           <li>Undo supports up to <strong>50 steps</strong> of layout changes.</li>
           <li>Change output resolution and FPS in the header controls.</li>

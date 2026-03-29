@@ -36,7 +36,8 @@ let outResizeStartX, outResizeStartY, outResizeOrigX, outResizeOrigY, outResizeO
 
 // Zone list drag-to-reorder state
 let zoneDragSrcIdx = null;
-let showOutlines = true;
+let showInputOutlines = true;
+let showOutputOutlines = true;
 
 // Pixel selection & HUD probe state
 let selectedPixel = null;   // { x, y, r, g, b, a } in video coordinates

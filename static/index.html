@@ -177,6 +177,42 @@
   .export-btn:hover { opacity: 0.9; }
   .export-btn:disabled { background: var(--surface3); color: var(--text-dim); cursor: not-allowed; }
 
+  /* ── Share panel ────────────────────────────────────────────────────────── */
+  .share-section { padding: 10px 14px 14px; border-top: 1px solid var(--border); flex-shrink: 0; }
+  .share-section-title { font-size: 0.62rem; font-family: var(--font-mono); letter-spacing: 0.1em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 8px; }
+  .share-title-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-family: var(--font-mono); font-size: 0.72rem; padding: 5px 8px; margin-bottom: 8px; outline: none; box-sizing: border-box; }
+  .share-title-input:focus { border-color: var(--accent); }
+  .share-platforms { display: flex; gap: 8px; }
+  .share-card { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .share-card-header { display: flex; align-items: center; gap: 5px; }
+  .share-card-name { font-size: 0.7rem; font-weight: 600; color: var(--text); flex: 1; }
+  .share-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); flex-shrink: 0; transition: all 0.3s; }
+  .share-dot.on { background: var(--accent); box-shadow: 0 0 6px rgba(0,245,160,0.5); }
+  .share-connect-btn { font-size: 0.6rem; font-family: var(--font-mono); background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--text-dim); padding: 2px 6px; cursor: pointer; transition: all 0.15s; white-space: nowrap; flex-shrink: 0; }
+  .share-connect-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .share-connect-btn.off { border-color: rgba(255,80,80,0.35); color: rgba(255,80,80,0.65); }
+  .share-connect-btn.off:hover { border-color: #ff4444; color: #ff4444; }
+  .share-upload-btn { width: 100%; padding: 5px 0; font-size: 0.7rem; font-family: var(--font-mono); border-radius: var(--radius); cursor: pointer; transition: all 0.15s; border: 1px solid; }
+  .share-upload-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .share-upload-btn.yt { background: rgba(255,50,50,0.08); border-color: rgba(255,80,80,0.3); color: #ff5555; }
+  .share-upload-btn.yt:hover:not(:disabled) { background: rgba(255,50,50,0.18); border-color: #ff4444; }
+  .share-upload-btn.tt { background: rgba(0,200,220,0.08); border-color: rgba(0,200,220,0.3); color: #00c8dc; }
+  .share-upload-btn.tt:hover:not(:disabled) { background: rgba(0,200,220,0.18); border-color: #00c8dc; }
+  .share-status-text { font-size: 0.59rem; font-family: var(--font-mono); color: var(--text-dim); text-align: center; min-height: 13px; }
+  /* Credentials modal */
+  #creds-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:600; align-items:center; justify-content:center; backdrop-filter:blur(4px); }
+  #creds-modal.show { display:flex; }
+  .creds-box { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:24px; width:340px; display:flex; flex-direction:column; gap:12px; }
+  .creds-box h3 { margin:0; font-size:0.9rem; color:var(--text); }
+  .creds-box p { margin:0; font-size:0.7rem; color:var(--text-dim); line-height:1.6; }
+  .creds-box a { color:var(--accent); cursor:pointer; }
+  .creds-input { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); color:var(--text); font-family:var(--font-mono); font-size:0.72rem; padding:7px 10px; outline:none; width:100%; box-sizing:border-box; }
+  .creds-input:focus { border-color:var(--accent); }
+  .creds-input::placeholder { color:var(--text-dim); }
+  .creds-actions { display:flex; gap:8px; }
+  .creds-save-btn { flex:1; background:var(--accent); color:#000; border:none; border-radius:var(--radius); padding:7px 0; font-family:var(--font-mono); font-size:0.75rem; font-weight:700; cursor:pointer; }
+  .creds-cancel-btn { background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:var(--radius); padding:7px 12px; font-family:var(--font-mono); font-size:0.75rem; cursor:pointer; }
+
   .progress-wrap { display: none; flex-direction: column; gap: 6px; margin-top: 10px; }
   .progress-wrap.show { display: flex; }
   .progress-bar-track { height: 5px; background: var(--surface3); border-radius: 3px; overflow: hidden; }
@@ -305,6 +341,43 @@
             <span id="progress-timecode"></span>
             <span class="progress-speed" id="progress-speed"></span>
           </div>
+        </div>
+      </div>
+      <div class="share-section">
+        <div class="share-section-title">Share</div>
+        <input class="share-title-input" id="share-title-input" placeholder="Video title (e.g. My Highlights #Shorts)" />
+        <div class="share-platforms">
+          <div class="share-card">
+            <div class="share-card-header">
+              <span class="share-card-name">▶ YouTube Shorts</span>
+              <span class="share-dot" id="yt-dot"></span>
+              <button class="share-connect-btn" id="yt-connect-btn" onclick="connectPlatform('youtube')">Connect</button>
+            </div>
+            <button class="share-upload-btn yt" id="yt-upload-btn" disabled onclick="uploadTo('youtube')">↑ Upload Short</button>
+            <div class="share-status-text" id="yt-status"></div>
+          </div>
+          <div class="share-card">
+            <div class="share-card-header">
+              <span class="share-card-name">♪ TikTok</span>
+              <span class="share-dot" id="tt-dot"></span>
+              <button class="share-connect-btn" id="tt-connect-btn" onclick="connectPlatform('tiktok')">Connect</button>
+            </div>
+            <button class="share-upload-btn tt" id="tt-upload-btn" disabled onclick="uploadTo('tiktok')">↑ Upload Video</button>
+            <div class="share-status-text" id="tt-status"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="creds-modal">
+      <div class="creds-box">
+        <h3 id="creds-title">Connect Platform</h3>
+        <p id="creds-desc">Enter your OAuth credentials.</p>
+        <input class="creds-input" id="creds-id"     placeholder="Client ID" autocomplete="off" />
+        <input class="creds-input" id="creds-secret" placeholder="Client Secret" type="password" autocomplete="off" />
+        <div class="creds-actions">
+          <button class="creds-cancel-btn" onclick="closeCredsModal()">Cancel</button>
+          <button class="creds-save-btn"   onclick="saveCredsAndConnect()">Save & Connect</button>
         </div>
       </div>
     </div>
@@ -549,6 +622,7 @@ function resetToStart() {
   zones = []; selectedZoneId = null; colorIdx = 0;
   trimStart = 0; trimEnd = null; tlDragging = null;
   undoStack = [];
+  lastExportedFile = null;
   audioTracks = [];
   audioTrackEls.forEach(a => { a.pause(); try { a.remove(); } catch {} });
   audioTrackEls = [];
@@ -1476,54 +1550,25 @@ function renderZonesList() {
         </button>
         <button class="zone-del" onclick="event.stopPropagation();removeZone('${z.id}')">✕</button>
       </div>
-      <div class="coord-section">
-        <div class="coord-label" style="color:var(--accent3)">SRC crop</div>
-        <div class="coord-inputs">
-          <span class="ci-label" style="color:var(--accent3)">X</span>
-          <input type="number" class="ci-input" id="srcx-${z.id}" value="${z.src.x}" min="0" onclick="event.stopPropagation()" onchange="setSrc('${z.id}','x',this.value)">
-          <span class="ci-sep">·</span>
-          <span class="ci-label" style="color:var(--accent3)">Y</span>
-          <input type="number" class="ci-input" id="srcy-${z.id}" value="${z.src.y}" min="0" onclick="event.stopPropagation()" onchange="setSrc('${z.id}','y',this.value)">
-        </div>
-        <div class="coord-inputs">
-          <span class="ci-label" style="color:var(--accent3)">W</span>
-          <input type="number" class="ci-input" id="srcw-${z.id}" value="${z.src.w}" min="1" onclick="event.stopPropagation()" onchange="setSrc('${z.id}','w',this.value)">
-          <span class="ci-sep">×</span>
-          <span class="ci-label" style="color:var(--accent3)">H</span>
-          <input type="number" class="ci-input" id="srch-${z.id}" value="${z.src.h}" min="1" onclick="event.stopPropagation()" onchange="setSrc('${z.id}','h',this.value)">
-          <span class="ci-label">px</span>
-        </div>
-      </div>
-      <div class="zone-actions">
-        <button class="zone-action-btn" onclick="event.stopPropagation();centerSrc('${z.id}')">&#9635; center</button>
-        <button class="zone-action-btn" onclick="event.stopPropagation();resetZoneDefaults('${z.id}')" title="Reset to centered 9:16 default">&#8635; reset 9:16</button>
-      </div>
-      <div class="scale-row">
-        <span class="ci-label" style="color:var(--accent3)">SCALE</span>
+      <div class="scale-row" style="margin-top:4px">
+        <span class="ci-label" style="color:var(--accent3)">SRC</span>
         <input type="range" class="scale-slider src-s" id="src-scale-${z.id}" min="10" max="500" step="1"
           value="${Math.round(z.src.w/videoInfo.width*100)}"
           onmousedown="pushUndo()" oninput="setSrcScale('${z.id}',+this.value)" onclick="event.stopPropagation()">
         <span class="scale-pct" id="src-scale-val-${z.id}">${Math.round(z.src.w/videoInfo.width*100)}%</span>
       </div>
-      <div class="coord-section" style="margin-top:2px">
-        <div class="coord-label" style="color:var(--accent)">DST &nbsp;<span id="dst-pos-${z.id}" style="color:var(--text-dim);font-weight:400;font-size:.58rem">${z.dst.x}, ${z.dst.y}</span></div>
-        <div class="coord-inputs">
-          <span class="ci-label" style="color:var(--accent)">W</span>
-          <input type="number" class="ci-input" id="dstw-${z.id}" value="${z.dst.w}" min="1" onclick="event.stopPropagation()" onchange="setDst('${z.id}','w',this.value)">
-          <span class="ci-sep">×</span>
-          <span class="ci-label" style="color:var(--accent)">H</span>
-          <input type="number" class="ci-input" id="dsth-${z.id}" value="${z.dst.h}" min="1" onclick="event.stopPropagation()" onchange="setDst('${z.id}','h',this.value)">
-          <span class="ci-label">px</span>
-        </div>
-        <div class="scale-row">
-          <span class="ci-label" style="color:var(--accent)">SCALE</span>
-          <input type="range" class="scale-slider dst-s" id="dst-scale-${z.id}" min="10" max="500" step="1"
-            value="${Math.round(z.dst.w/OUT_W*100)}"
-            onmousedown="pushUndo()" oninput="setDstScale('${z.id}',+this.value)" onclick="event.stopPropagation()">
-          <span class="scale-pct" id="dst-scale-val-${z.id}">${Math.round(z.dst.w/OUT_W*100)}%</span>
-        </div>
+      <div class="zone-actions">
+        <button class="zone-action-btn" onclick="event.stopPropagation();centerSrc('${z.id}')">&#9635; center src</button>
+        <button class="zone-action-btn" onclick="event.stopPropagation();resetZoneDefaults('${z.id}')" title="Reset to centered 9:16 default">&#8635; reset 9:16</button>
       </div>
-      <div class="zone-actions" style="margin-top:4px">
+      <div class="scale-row" style="margin-top:2px">
+        <span class="ci-label" style="color:var(--accent)">DST</span>
+        <input type="range" class="scale-slider dst-s" id="dst-scale-${z.id}" min="10" max="500" step="1"
+          value="${Math.round(z.dst.w/OUT_W*100)}"
+          onmousedown="pushUndo()" oninput="setDstScale('${z.id}',+this.value)" onclick="event.stopPropagation()">
+        <span class="scale-pct" id="dst-scale-val-${z.id}">${Math.round(z.dst.w/OUT_W*100)}%</span>
+      </div>
+      <div class="zone-actions" style="margin-top:2px">
         <button class="zone-action-btn" onclick="event.stopPropagation();centerDst('${z.id}')">&#9635; center dst</button>
       </div>
       <div class="scale-row" style="margin-top:5px;border-top:1px solid var(--border);padding-top:5px">
@@ -1658,7 +1703,10 @@ async function exportVideo() {
       timecode.textContent=''; speedEl.textContent='';
       const a=document.createElement('a'); a.href=`${API}${pd.download_url}`; a.download=`verticut_${expW}x${expH}_${expFPS}fps.mp4`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(()=>{ resetExportUI(btn,prog); toast('Export complete!'); },2500);
+      lastExportedFile = pd.output_file;
+      document.getElementById('share-title-input').placeholder = a.download.replace('.mp4','');
+      refreshShareStatus();
+      setTimeout(()=>{ resetExportUI(btn,prog); toast('Export complete! Ready to share.'); },2500);
     } else if (pd.status==='error') {
       clearInterval(exportPollTimer); exportPollTimer=null;
       resetExportUI(btn,prog); toast('FFmpeg error — check terminal'); console.error(pd.error);
@@ -1684,6 +1732,138 @@ function resetExportUI(btn,prog) {
 function fmt(s) { const m=Math.floor(s/60),sec=Math.floor(s%60); return `${m}:${sec.toString().padStart(2,'0')}`; }
 let toastTimer;
 function toast(msg) { const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),3200); }
+
+// ── SHARE / UPLOAD ────────────────────────────────────────────────────────────
+let lastExportedFile  = null;
+let credsModalPlatform = null;
+let authPollTimer      = null;
+
+async function refreshShareStatus() {
+  try {
+    const d = await (await fetch(`${API}/auth/status`)).json();
+    // YouTube
+    const ytDot = document.getElementById('yt-dot');
+    const ytCon = document.getElementById('yt-connect-btn');
+    const ytUp  = document.getElementById('yt-upload-btn');
+    if (d.youtube_connected) {
+      ytDot.className = 'share-dot on';
+      ytCon.textContent = 'Disconnect'; ytCon.className = 'share-connect-btn off';
+      ytCon.onclick = () => disconnectPlatform('youtube');
+      ytUp.disabled = !lastExportedFile;
+    } else {
+      ytDot.className = 'share-dot';
+      ytCon.textContent = 'Connect'; ytCon.className = 'share-connect-btn';
+      ytCon.onclick = () => connectPlatform('youtube');
+      ytUp.disabled = true;
+    }
+    // TikTok
+    const ttDot = document.getElementById('tt-dot');
+    const ttCon = document.getElementById('tt-connect-btn');
+    const ttUp  = document.getElementById('tt-upload-btn');
+    if (d.tiktok_connected) {
+      ttDot.className = 'share-dot on';
+      ttCon.textContent = 'Disconnect'; ttCon.className = 'share-connect-btn off';
+      ttCon.onclick = () => disconnectPlatform('tiktok');
+      ttUp.disabled = !lastExportedFile;
+    } else {
+      ttDot.className = 'share-dot';
+      ttCon.textContent = 'Connect'; ttCon.className = 'share-connect-btn';
+      ttCon.onclick = () => connectPlatform('tiktok');
+      ttUp.disabled = true;
+    }
+  } catch {}
+}
+
+function connectPlatform(platform) { openCredsModal(platform); }
+
+function openCredsModal(platform) {
+  credsModalPlatform = platform;
+  const isYT = platform === 'youtube';
+  document.getElementById('creds-title').textContent = isYT ? 'Connect YouTube' : 'Connect TikTok';
+  document.getElementById('creds-desc').innerHTML = isYT
+    ? `Enter your Google OAuth 2.0 Client ID &amp; Secret.<br><a onclick="window.open('https://console.cloud.google.com/apis/credentials','_blank')">Get credentials at Google Cloud Console →</a>`
+    : `Enter your TikTok App Client Key &amp; Client Secret.<br><a onclick="window.open('https://developers.tiktok.com/apps/','_blank')">Get credentials at TikTok for Developers →</a>`;
+  document.getElementById('creds-id').value = '';
+  document.getElementById('creds-secret').value = '';
+  document.getElementById('creds-modal').classList.add('show');
+  setTimeout(() => document.getElementById('creds-id').focus(), 80);
+}
+function closeCredsModal() {
+  document.getElementById('creds-modal').classList.remove('show');
+  credsModalPlatform = null;
+}
+
+async function saveCredsAndConnect() {
+  const client_id     = document.getElementById('creds-id').value.trim();
+  const client_secret = document.getElementById('creds-secret').value.trim();
+  if (!client_id || !client_secret) return toast('Enter both Client ID and Secret');
+  const platform = credsModalPlatform;
+  closeCredsModal();
+  await fetch(`${API}/auth/config`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ platform, client_id, client_secret }) });
+  try {
+    const r = await fetch(`${API}/auth/${platform}/start`);
+    const d = await r.json();
+    if (d.error) return toast('Error: ' + d.error);
+    window.open(d.url, '_blank');
+    toast(`Sign in to ${platform === 'youtube' ? 'Google' : 'TikTok'} in your browser, then return here`);
+    if (authPollTimer) clearInterval(authPollTimer);
+    authPollTimer = setInterval(async () => {
+      try {
+        const s = await (await fetch(`${API}/auth/status`)).json();
+        if (s[platform + '_connected']) {
+          clearInterval(authPollTimer); authPollTimer = null;
+          refreshShareStatus();
+          toast(`${platform === 'youtube' ? 'YouTube' : 'TikTok'} connected! ✓`);
+        }
+      } catch {}
+    }, 2000);
+  } catch (e) { toast('Auth error: ' + e.message); }
+}
+
+async function disconnectPlatform(platform) {
+  await fetch(`${API}/auth/disconnect/${platform}`, { method: 'DELETE' });
+  refreshShareStatus();
+  toast(`${platform === 'youtube' ? 'YouTube' : 'TikTok'} disconnected`);
+}
+
+async function uploadTo(platform) {
+  if (!lastExportedFile) return toast('Export a video first');
+  const title   = document.getElementById('share-title-input').value.trim() || 'VertiCut Export #Shorts';
+  const statEl  = document.getElementById(platform === 'youtube' ? 'yt-status'     : 'tt-status');
+  const upBtn   = document.getElementById(platform === 'youtube' ? 'yt-upload-btn' : 'tt-upload-btn');
+  const origTxt = upBtn.textContent;
+  upBtn.disabled = true; upBtn.textContent = 'Uploading…';
+  statEl.textContent = `Sending to ${platform === 'youtube' ? 'YouTube' : 'TikTok'}…`;
+  try {
+    const res  = await fetch(`${API}/upload/${platform}`, { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: lastExportedFile, title }) });
+    const data = await res.json();
+    if (data.ok) {
+      upBtn.textContent = '✓ Uploaded!';
+      if (data.url) {
+        statEl.innerHTML = `<a style="color:var(--accent);cursor:pointer" onclick="window.open('${data.url}','_blank')">View on ${platform === 'youtube' ? 'YouTube' : 'TikTok'} →</a>`;
+      } else { statEl.textContent = 'Upload complete!'; }
+      toast('Upload complete!');
+      setTimeout(() => { upBtn.textContent = origTxt; upBtn.disabled = false; }, 5000);
+    } else {
+      upBtn.textContent = origTxt; upBtn.disabled = false;
+      statEl.textContent = 'Error: ' + (data.error || 'Unknown');
+      toast('Upload failed: ' + (data.error || 'Unknown'));
+    }
+  } catch (e) {
+    upBtn.textContent = origTxt; upBtn.disabled = false;
+    statEl.textContent = 'Network error';
+    toast('Upload error: ' + e.message);
+  }
+}
+
+document.getElementById('creds-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeCredsModal(); });
+document.getElementById('creds-id').addEventListener('keydown',     e => { if (e.key === 'Enter') document.getElementById('creds-secret').focus(); });
+document.getElementById('creds-secret').addEventListener('keydown', e => { if (e.key === 'Enter') saveCredsAndConnect(); });
+
+refreshShareStatus();
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 setMode('draw');

@@ -1,5 +1,5 @@
 // ── Zone management ───────────────────────────────────────────────────────────
-let newZoneId = null;
+let _renderedZoneIds = new Set();
 
 function selectZone(id) {
   if (selectedZoneId === id) return;
@@ -18,7 +18,7 @@ function refreshZoneCard(z) {
   const toggleBtn = card.querySelector('.zone-toggle-btn');
   if (toggleBtn) {
     toggleBtn.classList.toggle('off', !!z.disabled);
-    toggleBtn.innerHTML = z.disabled ? '👁‍🗨 off' : '👁 on';
+    toggleBtn.innerHTML = z.disabled ? '👁︎ off' : '👁︎ on';
     toggleBtn.title = z.disabled ? 'Enable crop' : 'Disable crop';
   }
   refreshSrcInputs(z);
@@ -265,7 +265,8 @@ function renderZonesList() {
   }
   zones.forEach((z, i) => {
     const card = document.createElement('div');
-    card.className = 'zone-card' + (selectedZoneId === z.id ? ' active' : '') + (z.disabled ? ' disabled-zone' : '') + (newZoneId === z.id ? ' zone-new' : '');
+    const isNew = !_renderedZoneIds.has(z.id);
+    card.className = 'zone-card' + (isNew ? ' zone-new' : '') + (selectedZoneId === z.id ? ' active' : '') + (z.disabled ? ' disabled-zone' : '');
     card.setAttribute('data-zone-id', z.id);
     card.onclick = () => { selectZone(z.id); };
     card.innerHTML = `
@@ -274,7 +275,7 @@ function renderZonesList() {
         <div class="zone-dot" style="background:${z.color}"></div>
         <input class="zone-name" value="${escHtml(z.label)}" onchange="renameZone('${z.id}',this.value)" onclick="event.stopPropagation()">
         <button class="zone-toggle-btn${z.disabled ? ' off' : ''}" title="${z.disabled ? 'Enable crop' : 'Disable crop'}" onclick="event.stopPropagation();toggleZoneDisabled('${z.id}')">
-          ${z.disabled ? '👁‍🗨 off' : '👁 on'}
+          ${z.disabled ? '👁︎ off' : '👁︎ on'}
         </button>
         <button class="zone-del" onclick="event.stopPropagation();removeZone('${z.id}')">✕</button>
       </div>
@@ -341,5 +342,5 @@ function renderZonesList() {
 
     list.appendChild(card);
   });
-  newZoneId = null;
+  _renderedZoneIds = new Set(zones.map(z => z.id));
 }

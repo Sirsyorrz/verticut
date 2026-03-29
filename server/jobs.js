@@ -1,6 +1,7 @@
 // ── In-memory job store ────────────────────────────────────────────────────────
-const jobs  = {};  // jobId -> { status, progressPath, outputFile, error }
-const procs = {};  // jobId -> ChildProcess (so we can kill on quit)
+const jobs     = {};  // jobId -> { status, progressPath, outputFile, error }
+const procs    = {};  // jobId -> ChildProcess (so we can kill on quit)
+const filePaths = {}; // fileId -> absolute path on disk
 
 function getJob(id)       { return jobs[id]; }
 function setJob(id, data) { jobs[id] = data; }
@@ -14,4 +15,7 @@ process.on('exit', () => {
   Object.values(procs).forEach(p => { try { p.kill(); } catch {} });
 });
 
-module.exports = { getJob, setJob, getProc, setProc, deleteProc };
+function getFilePath(id)        { return filePaths[id]; }
+function setFilePath(id, fpath) { filePaths[id] = fpath; }
+
+module.exports = { getJob, setJob, getProc, setProc, deleteProc, getFilePath, setFilePath };

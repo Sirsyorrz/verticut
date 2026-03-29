@@ -7,9 +7,7 @@ const { registerRoutes } = require('./routes');
 
 function startServer(port, userDataPath) {
   return new Promise((resolve, reject) => {
-    const uploadsDir = path.join(userDataPath, 'uploads');
     const outputsDir = path.join(userDataPath, 'outputs');
-    fs.mkdirSync(uploadsDir, { recursive: true });
     fs.mkdirSync(outputsDir, { recursive: true });
 
     const app = express();
@@ -18,7 +16,7 @@ function startServer(port, userDataPath) {
     app.use(express.static(path.join(__dirname, '..', 'static')));
     app.set('port', port);
 
-    registerRoutes(app, uploadsDir, outputsDir);
+    registerRoutes(app, outputsDir);
 
     const server = app.listen(port, '127.0.0.1', () => {
       console.log(`VertiCut server on port ${port}`);

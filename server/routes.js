@@ -1,31 +1,24 @@
-const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs   = require('fs');
 
 const { ffmpegPath, getVideoInfo } = require('./ffmpeg');
-const { getJob, setJob, setProc, deleteProc } = require('./jobs');
+const { getJob, setJob, setProc, deleteProc, getFilePath, setFilePath } = require('./jobs');
 
-function registerRoutes(app, uploadsDir, outputsDir) {
-
-  // ── Multer upload storage ──────────────────────────────────────────────────
-  const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, uploadsDir),
-    filename:    (req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase() || '.mp4';
-      cb(null, `${uuidv4()}${ext}`);
-    }
-  });
-  const upload = multer({ storage });
+function registerRoutes(app, outputsDir) {
 
   // ── POST /upload ───────────────────────────────────────────────────────────
-  app.post('/upload', upload.single('video'), async (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'No video file' });
+  app.post('/upload', async (req, res) => {
+    const { filePath } = req.body;
+    if (!filePath) return res.status(400).json({ error: 'No file path provided' });
+    if (!fs.existsSync(filePath)) return res.status(400).json({ error: 'File not found: ' + filePath });
     try {
-      const info = await getVideoInfo(req.file.path);
+      const info     = await getVideoInfo(filePath);
+      const fileId   = uuidv4();
+      setFilePath(fileId, filePath);
       res.json({
-        filename:     req.file.filename,
+        filename:     fileId,
         width:        info.width,
         height:       info.height,
         duration:     info.duration,
@@ -39,17 +32,17 @@ function registerRoutes(app, uploadsDir, outputsDir) {
 
   // ── GET /video/:filename ───────────────────────────────────────────────────
   app.get('/video/:filename', (req, res) => {
-    const fp = path.join(uploadsDir, req.params.filename);
-    if (!fs.existsSync(fp)) return res.status(404).send('Not found');
+    const fp = getFilePath(req.params.filename);
+    if (!fp || !fs.existsSync(fp)) return res.status(404).send('Not found');
     res.sendFile(fp);
   });
 
   // ── GET /audio_track/:filename/:idx ────────────────────────────────────────
   app.get('/audio_track/:filename/:idx', async (req, res) => {
-    const fp  = path.join(uploadsDir, req.params.filename);
+    const fp  = getFilePath(req.params.filename);
     const idx = parseInt(req.params.idx);
     if (isNaN(idx) || idx < 0) return res.status(400).send('Bad track index');
-    if (!fs.existsSync(fp))    return res.status(404).send('Not found');
+    if (!fp || !fs.existsSync(fp)) return res.status(404).send('Not found');
 
     const base      = path.basename(fp, path.extname(fp));
     const trackFile = `track_${base}_${idx}.mp3`;
@@ -85,8 +78,8 @@ function registerRoutes(app, uploadsDir, outputsDir) {
     const trimEnd     = data.trim_end      || null;
     const mutedTracks = data.muted_tracks  || [];
 
-    const filepath = path.join(uploadsDir, filename);
-    if (!fs.existsSync(filepath))
+    const filepath = getFilePath(filename);
+    if (!filepath || !fs.existsSync(filepath))
       return res.status(404).json({ error: 'Source video not found' });
 
     let info;

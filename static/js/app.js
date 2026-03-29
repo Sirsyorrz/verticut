@@ -35,9 +35,12 @@ dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
 dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
 
 async function handleFile(file) {
-  toast('Uploading…');
-  const form = new FormData(); form.append('video', file);
-  const res = await fetch(`${API}/upload`, { method: 'POST', body: form });
+  toast('Loading…');
+  const res = await fetch(`${API}/upload`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filePath: file.path })
+  });
   const data = await res.json();
   if (data.error) return toast('Error: ' + data.error);
   filename = data.filename; videoInfo = data;

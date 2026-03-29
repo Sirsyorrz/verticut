@@ -125,6 +125,35 @@ function applySrcSnap(z) {
   z.src.y = Math.max(0, Math.min(videoInfo.height - h, sy));
 }
 
+// ── Polygon helpers ────────────────────────────────────────────────────────────
+function polygonBBox(points) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of points) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  return {
+    x: Math.round(minX), y: Math.round(minY),
+    w: Math.max(1, Math.round(maxX - minX)),
+    h: Math.max(1, Math.round(maxY - minY))
+  };
+}
+
+function pointInPolygon(px, py, points) {
+  let inside = false;
+  const n = points.length;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = points[i].x, yi = points[i].y;
+    const xj = points[j].x, yj = points[j].y;
+    const intersect = ((yi > py) !== (yj > py)) &&
+      (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
 function applyDstSnap(z) {
   const w = z.dst.w, h = z.dst.h;
   let sx = z.dst.x, sy = z.dst.y;

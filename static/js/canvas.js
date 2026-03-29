@@ -19,6 +19,44 @@ function setupCanvases() {
   outCanvas.style.transform = ''; outCanvas.style.transformOrigin = '';
 }
 
+// ── Reusable off-screen canvases for feather compositing ──────────────────────
+let _ftCanvas = null, _fmCanvas = null;
+function ensureFeatherCanvases(w, h) {
+  if (!_ftCanvas || _ftCanvas.width !== w || _ftCanvas.height !== h) {
+    _ftCanvas = document.createElement('canvas');
+    _ftCanvas.width = w; _ftCanvas.height = h;
+    _fmCanvas = document.createElement('canvas');
+    _fmCanvas.width = w; _fmCanvas.height = h;
+  }
+}
+
+// ── Shape path builder (used by both overlay and output) ─────────────────────
+function buildZonePath(ctx, sx, sy, sw, sh, z) {
+  ctx.beginPath();
+  if (z.shape === 'ellipse') {
+    ctx.ellipse(sx + sw / 2, sy + sh / 2, sw / 2, sh / 2, 0, 0, Math.PI * 2);
+  } else if (z.shape === 'polygon' && z.points && z.points.length >= 2) {
+    const scale = sw / z.src.w; // derive local scale from bbox
+    z.points.forEach((p, idx) => {
+      const px = sx + (p.x - z.src.x) * scale;
+      const py = sy + (p.y - z.src.y) * scale;
+      if (idx === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    });
+    ctx.closePath();
+  } else {
+    ctx.rect(sx, sy, sw, sh);
+  }
+}
+
+function drawPolygonHandles(ctx, z, hs, color) {
+  if (!z.points) return;
+  ctx.fillStyle = color;
+  z.points.forEach(p => {
+    const px = p.x * srcScale, py = p.y * srcScale;
+    ctx.fillRect(px - hs / 2, py - hs / 2, hs, hs);
+  });
+}
+
 function drawOverlay() {
   ovCtx.clearRect(0, 0, ovCanvas.width, ovCanvas.height);
   if (zones.length === 0 && videoEl) {
@@ -40,11 +78,13 @@ function drawOverlay() {
       ovCtx.globalAlpha = alpha;
 
       ovCtx.fillStyle = z.color + (isSelected ? '22' : '12');
-      ovCtx.fillRect(sx, sy, sw, sh);
+      buildZonePath(ovCtx, sx, sy, sw, sh, z);
+      ovCtx.fill();
 
       ovCtx.strokeStyle = z.color; ovCtx.lineWidth = isSelected ? 2.5 : 1.5;
       ovCtx.setLineDash(isSelected ? [] : [5, 3]);
-      ovCtx.strokeRect(sx, sy, sw, sh);
+      buildZonePath(ovCtx, sx, sy, sw, sh, z);
+      ovCtx.stroke();
       ovCtx.setLineDash([]);
 
       const lbl = `${i + 1} ${z.label}`;
@@ -53,16 +93,60 @@ function drawOverlay() {
       ovCtx.fillStyle = z.color; ovCtx.fillRect(sx, sy, tw + 12, 19);
       ovCtx.fillStyle = '#000'; ovCtx.fillText(lbl, sx + 6, sy + 13);
 
-      drawHandles(ovCtx, zoneHandlePts(sx, sy, sw, sh), z.color, isSelected ? 9 : 7);
+      if (z.shape === 'polygon') {
+        drawPolygonHandles(ovCtx, z, isSelected ? 9 : 7, z.color);
+      } else {
+        drawHandles(ovCtx, zoneHandlePts(sx, sy, sw, sh), z.color, isSelected ? 9 : 7);
+      }
 
       if (isSelected) {
         ovCtx.shadowColor = z.color; ovCtx.shadowBlur = 10;
         ovCtx.strokeStyle = z.color + '50'; ovCtx.lineWidth = 1;
-        ovCtx.strokeRect(sx - 2, sy - 2, sw + 4, sh + 4);
+        buildZonePath(ovCtx, sx - 2, sy - 2, sw + 4, sh + 4, z);
+        ovCtx.stroke();
         ovCtx.shadowBlur = 0;
       }
       ovCtx.globalAlpha = 1;
     });
+  }
+
+  // ── Pen-in-progress preview ──────────────────────────────────────────────────
+  if (currentTool === 'pen' && penPoints.length > 0) {
+    const col = COLORS[colorIdx % COLORS.length];
+    ovCtx.save();
+    // Connecting line through placed points
+    ovCtx.strokeStyle = col; ovCtx.lineWidth = 1.5; ovCtx.setLineDash([4, 3]);
+    ovCtx.beginPath();
+    penPoints.forEach((p, idx) => {
+      const cx = p.x * srcScale, cy = p.y * srcScale;
+      if (idx === 0) ovCtx.moveTo(cx, cy); else ovCtx.lineTo(cx, cy);
+    });
+    // Rubber-band line to cursor
+    if (penCursorPos) ovCtx.lineTo(penCursorPos.x, penCursorPos.y);
+    ovCtx.stroke();
+    ovCtx.setLineDash([]);
+    // Placed-point dots
+    penPoints.forEach((p, idx) => {
+      const cx = p.x * srcScale, cy = p.y * srcScale;
+      ovCtx.beginPath();
+      ovCtx.arc(cx, cy, idx === 0 ? 6 : 4, 0, Math.PI * 2);
+      ovCtx.fillStyle = idx === 0 ? col : '#fff';
+      ovCtx.fill();
+      if (idx === 0) {
+        // Close-target ring on first point
+        ovCtx.strokeStyle = '#fff'; ovCtx.lineWidth = 1;
+        ovCtx.beginPath(); ovCtx.arc(cx, cy, 9, 0, Math.PI * 2); ovCtx.stroke();
+      }
+    });
+    // Status hint at bottom of canvas
+    const hint = penPoints.length < 3
+      ? `${penPoints.length} pt${penPoints.length !== 1 ? 's' : ''} — keep clicking to add points (need 3+)`
+      : `${penPoints.length} pts — click \u2460 to close  |  dbl-click to finish  |  Esc to cancel`;
+    ovCtx.font = '10px JetBrains Mono,monospace';
+    const tw = ovCtx.measureText(hint).width;
+    ovCtx.fillStyle = 'rgba(0,0,0,0.7)'; ovCtx.fillRect(6, ovCanvas.height - 22, tw + 12, 17);
+    ovCtx.fillStyle = col; ovCtx.fillText(hint, 12, ovCanvas.height - 9);
+    ovCtx.restore();
   }
 
   // Draw HUD probe points on source overlay
@@ -135,25 +219,100 @@ function drawOutput() {
     if (probeOpacity <= 0) return;
     const dx = z.dst.x * outScale, dy = z.dst.y * outScale, dw = z.dst.w * outScale, dh = z.dst.h * outScale;
     const isSelected = selectedZoneId === z.id;
-    outCtx.save();
-    if (probeOpacity < 1) outCtx.globalAlpha = probeOpacity;
-    if (z.blur > 0) outCtx.filter = `blur(${z.blur}px)`;
-    outCtx.drawImage(videoEl, z.src.x, z.src.y, z.src.w, z.src.h, dx, dy, dw, dh);
-    outCtx.restore();
+
+    if (z.feather > 0) {
+      // ── Feathered rendering via off-screen mask compositing ──────────────
+      ensureFeatherCanvases(outCanvas.width, outCanvas.height);
+      const ftCtx = _ftCanvas.getContext('2d');
+      const fmCtx = _fmCanvas.getContext('2d');
+      ftCtx.clearRect(0, 0, _ftCanvas.width, _ftCanvas.height);
+      fmCtx.clearRect(0, 0, _fmCanvas.width, _fmCanvas.height);
+
+      // 1. Draw video content (with blur if set) onto the temp canvas
+      ftCtx.save();
+      if (z.blur > 0) ftCtx.filter = `blur(${z.blur}px)`;
+      ftCtx.drawImage(videoEl, z.src.x, z.src.y, z.src.w, z.src.h, dx, dy, dw, dh);
+      ftCtx.restore();
+
+      // 2. Draw the zone shape as a filled white mask with blur → soft edges
+      fmCtx.save();
+      fmCtx.filter = `blur(${z.feather}px)`;
+      fmCtx.fillStyle = 'white';
+      buildZonePath(fmCtx, dx, dy, dw, dh, z);
+      fmCtx.fill();
+      fmCtx.restore();
+
+      // 3. Apply soft mask: keep only content where mask is opaque (destination-in)
+      ftCtx.globalCompositeOperation = 'destination-in';
+      ftCtx.drawImage(_fmCanvas, 0, 0);
+      ftCtx.globalCompositeOperation = 'source-over';
+
+      // 4. Composite the feathered zone onto the output canvas
+      outCtx.save();
+      if (probeOpacity < 1) outCtx.globalAlpha = probeOpacity;
+      outCtx.drawImage(_ftCanvas, 0, 0);
+      outCtx.restore();
+    } else {
+      // ── Hard-edge rendering (original path) ──────────────────────────────
+      outCtx.save();
+      if (probeOpacity < 1) outCtx.globalAlpha = probeOpacity;
+      if (z.blur > 0) outCtx.filter = `blur(${z.blur}px)`;
+
+      if (z.shape === 'ellipse') {
+        outCtx.beginPath();
+        outCtx.ellipse(dx + dw / 2, dy + dh / 2, dw / 2, dh / 2, 0, 0, Math.PI * 2);
+        outCtx.clip();
+      } else if (z.shape === 'polygon' && z.points && z.points.length >= 3 && z.src.w > 0 && z.src.h > 0) {
+        outCtx.beginPath();
+        z.points.forEach((p, idx) => {
+          const fx = (p.x - z.src.x) / z.src.w;
+          const fy = (p.y - z.src.y) / z.src.h;
+          const ox = dx + fx * dw, oy = dy + fy * dh;
+          if (idx === 0) outCtx.moveTo(ox, oy); else outCtx.lineTo(ox, oy);
+        });
+        outCtx.closePath();
+        outCtx.clip();
+      }
+
+      outCtx.drawImage(videoEl, z.src.x, z.src.y, z.src.w, z.src.h, dx, dy, dw, dh);
+      outCtx.restore();
+    }
+
     if (showOutputOutlines) {
+      outCtx.save();
       outCtx.strokeStyle = z.color; outCtx.lineWidth = isSelected ? 2 : 1;
       outCtx.setLineDash(isSelected ? [] : [4, 3]);
-      outCtx.strokeRect(dx, dy, dw, dh); outCtx.setLineDash([]);
+
+      if (z.shape === 'ellipse') {
+        outCtx.beginPath();
+        outCtx.ellipse(dx + dw / 2, dy + dh / 2, dw / 2, dh / 2, 0, 0, Math.PI * 2);
+        outCtx.stroke();
+      } else if (z.shape === 'polygon' && z.points && z.points.length >= 3 && z.src.w > 0 && z.src.h > 0) {
+        outCtx.beginPath();
+        z.points.forEach((p, idx) => {
+          const ox = dx + ((p.x - z.src.x) / z.src.w) * dw;
+          const oy = dy + ((p.y - z.src.y) / z.src.h) * dh;
+          if (idx === 0) outCtx.moveTo(ox, oy); else outCtx.lineTo(ox, oy);
+        });
+        outCtx.closePath(); outCtx.stroke();
+      } else {
+        outCtx.strokeRect(dx, dy, dw, dh);
+      }
+      outCtx.setLineDash([]);
+
       outCtx.font = 'bold 9px monospace';
       const lbl = `${i + 1} ${z.label}`, tw = outCtx.measureText(lbl).width;
       outCtx.fillStyle = z.color + 'cc'; outCtx.fillRect(dx + 2, dy + 2, tw + 7, 13);
       outCtx.fillStyle = '#000'; outCtx.fillText(lbl, dx + 5, dy + 12);
+
       drawHandles(outCtx, zoneHandlePts(dx, dy, dw, dh), z.color, isSelected ? 9 : 7);
+
       if (isSelected) {
         outCtx.shadowColor = z.color; outCtx.shadowBlur = 8;
         outCtx.strokeStyle = z.color + '50'; outCtx.lineWidth = 1;
         outCtx.strokeRect(dx - 2, dy - 2, dw + 4, dh + 4); outCtx.shadowBlur = 0;
       }
+      outCtx.restore();
     }
   });
 

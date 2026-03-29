@@ -2,7 +2,15 @@
 let _renderedZoneIds = new Set();
 
 function zonesAtPixel(vx, vy) {
-  return zones.filter(z => vx >= z.src.x && vx <= z.src.x + z.src.w && vy >= z.src.y && vy <= z.src.y + z.src.h);
+  return zones.filter(z => {
+    if (z.shape === 'polygon' && z.points) return pointInPolygon(vx, vy, z.points);
+    if (z.shape === 'ellipse') {
+      const cx = z.src.x + z.src.w / 2, cy = z.src.y + z.src.h / 2;
+      const rx = z.src.w / 2, ry = z.src.h / 2;
+      return rx > 0 && ry > 0 && ((vx - cx) / rx) ** 2 + ((vy - cy) / ry) ** 2 <= 1;
+    }
+    return vx >= z.src.x && vx <= z.src.x + z.src.w && vy >= z.src.y && vy <= z.src.y + z.src.h;
+  });
 }
 
 function startSetProbe(id) {
@@ -63,23 +71,48 @@ function addAutoGameplayZone() {
   const srcX = Math.round((videoInfo.width - cropW) / 2);
   const srcY = Math.round((videoInfo.height - cropH) / 2);
   const id = Date.now().toString(), color = COLORS[colorIdx % COLORS.length]; colorIdx++;
-  zones.push({ id, label: 'Gameplay', color, arLocked: true,
+  zones.push({ id, label: 'Gameplay', color, arLocked: true, shape: 'rect',
     src: { x: srcX, y: srcY, w: cropW, h: cropH },
     dst: { x: 0, y: 0, w: OUT_W, h: OUT_H }
   });
   selectedZoneId = id; newZoneId = id; renderZonesList();
 }
 
-function addZone(vx, vy, vw, vh) {
+function addZone(vx, vy, vw, vh, shape) {
   pushUndo();
   const names = ['Gameplay','HUD','Health Bar','Minimap','Scoreboard','Cam','Chat','Zone 8'];
   const id = Date.now().toString(), color = COLORS[colorIdx % COLORS.length]; colorIdx++;
   const label = names[zones.length] || `Zone ${zones.length + 1}`;
   const aspect = vw / vh, dstW = OUT_W, dstH = Math.min(Math.round(OUT_W / aspect), OUT_H);
   const dstY = Math.round((OUT_H - dstH) / 2);
-  zones.push({ id, label, color, disabled: false, blur: 0, arLocked: true, src: { x: vx, y: vy, w: vw, h: vh }, dst: { x: 0, y: dstY, w: dstW, h: dstH } });
+  zones.push({ id, label, color, disabled: false, blur: 0, feather: 0, arLocked: true,
+    shape: shape || 'rect',
+    src: { x: vx, y: vy, w: vw, h: vh },
+    dst: { x: 0, y: dstY, w: dstW, h: dstH }
+  });
   selectedZoneId = id; newZoneId = id; renderZonesList();
   toast(`"${label}" added — drag to reposition`);
+}
+
+function addZonePolygon(points) {
+  pushUndo();
+  const bbox = polygonBBox(points);
+  const names = ['Gameplay','HUD','Health Bar','Minimap','Scoreboard','Cam','Chat','Zone 8'];
+  const id = Date.now().toString(), color = COLORS[colorIdx % COLORS.length]; colorIdx++;
+  const label = names[zones.length] || `Zone ${zones.length + 1}`;
+  const aspect = bbox.w / bbox.h;
+  const dstW = OUT_W, dstH = Math.min(Math.round(OUT_W / aspect), OUT_H);
+  const dstY = Math.round((OUT_H - dstH) / 2);
+  zones.push({ id, label, color, disabled: false, blur: 0, feather: 0, arLocked: false,
+    shape: 'polygon',
+    points: points.map(p => ({ x: p.x, y: p.y })),
+    src: { x: bbox.x, y: bbox.y, w: bbox.w, h: bbox.h },
+    dst: { x: 0, y: dstY, w: dstW, h: dstH }
+  });
+  selectedZoneId = id; newZoneId = id;
+  penPoints = []; penCursorPos = null;
+  renderZonesList();
+  toast(`"${label}" polygon added`);
 }
 
 function removeZone(id) {
@@ -112,6 +145,13 @@ function setZoneBlur(id, val) {
   if (lbl) lbl.textContent = val > 0 ? val + 'px' : 'off';
 }
 
+function setZoneFeather(id, val) {
+  const z = zones.find(z => z.id === id); if (!z) return;
+  z.feather = val;
+  const lbl = document.getElementById(`feather-val-${id}`);
+  if (lbl) lbl.textContent = val > 0 ? val + 'px' : 'off';
+}
+
 function copyZone() {
   const z = zones.find(z => z.id === selectedZoneId);
   if (!z) return toast('Select a zone first');
@@ -140,6 +180,7 @@ function pasteZone() {
 // ── Scale / center / reset ────────────────────────────────────────────────────
 function setSrcScale(id, pct) {
   const z = zones.find(z => z.id === id); if (!z) return;
+  if (z.shape === 'polygon') return; // points define the shape; can't scale via slider
   const newW = Math.round(videoInfo.width * pct / 100);
   const newH = Math.round(newW * z.src.h / z.src.w);
   const cx = z.src.x + z.src.w / 2, cy = z.src.y + z.src.h / 2;
@@ -301,11 +342,15 @@ function renderZonesList() {
         <div class="zone-drag-handle" title="Drag to reorder">⠿</div>
         <div class="zone-dot" style="background:${z.color}"></div>
         <input class="zone-name" value="${escHtml(z.label)}" onchange="renameZone('${z.id}',this.value)" onclick="event.stopPropagation()">
+        ${z.shape && z.shape !== 'rect' ? `<span class="zone-shape-badge">${z.shape}</span>` : ''}
         <button class="zone-toggle-btn${z.disabled ? ' off' : ''}" title="${z.disabled ? 'Enable crop' : 'Disable crop'}" onclick="event.stopPropagation();toggleZoneDisabled('${z.id}')">
           ${z.disabled ? '👁︎ off' : '👁︎ on'}
         </button>
         <button class="zone-del" onclick="event.stopPropagation();removeZone('${z.id}')">✕</button>
       </div>
+      ${z.shape === 'polygon' ? `
+      <div class="zone-poly-hint">Polygon · ${z.points ? z.points.length : 0} pts — drag vertices on canvas</div>
+      ` : `
       <div class="scale-row" style="margin-top:4px">
         <span class="ci-label" style="color:var(--accent3)">SRC</span>
         <input type="range" class="scale-slider src-s" id="src-scale-${z.id}" min="10" max="500" step="1"
@@ -317,6 +362,7 @@ function renderZonesList() {
         <button class="zone-action-btn" onclick="event.stopPropagation();centerSrc('${z.id}')">&#9635; center src</button>
         <button class="zone-action-btn" onclick="event.stopPropagation();resetZoneDefaults('${z.id}')" title="Reset to centered 9:16 default">&#8635; reset 9:16</button>
       </div>
+      `}
       <div class="scale-row" style="margin-top:2px">
         <span class="ci-label" style="color:var(--accent)">DST</span>
         <input type="range" class="scale-slider dst-s" id="dst-scale-${z.id}" min="10" max="500" step="1"
@@ -333,6 +379,14 @@ function renderZonesList() {
           value="${z.blur || 0}"
           onmousedown="pushUndo()" oninput="setZoneBlur('${z.id}',+this.value)" onclick="event.stopPropagation()">
         <span class="scale-pct" id="blur-val-${z.id}" style="color:#a78bfa">${z.blur > 0 ? (z.blur + 'px') : 'off'}</span>
+      </div>
+      <div class="scale-row" style="margin-top:3px">
+        <span class="ci-label" style="color:#fb923c">FEATHER</span>
+        <input type="range" class="scale-slider feather-s" id="feather-${z.id}" min="0" max="80" step="1"
+          value="${z.feather || 0}"
+          onmousedown="pushUndo()" oninput="setZoneFeather('${z.id}',+this.value)" onclick="event.stopPropagation()"
+          title="Feather — softens the edge of the mask by blending with the background">
+        <span class="scale-pct" id="feather-val-${z.id}" style="color:#fb923c">${(z.feather || 0) > 0 ? ((z.feather || 0) + 'px') : 'off'}</span>
       </div>
       <div class="zone-actions" style="margin-top:3px;border-top:1px solid var(--border);padding-top:4px">
         <button class="zone-action-btn probe-set-btn" id="probe-btn-${z.id}" onclick="event.stopPropagation();startSetProbe('${z.id}')" title="Alt+Click source canvas to add probe point">⊙ add probe</button>

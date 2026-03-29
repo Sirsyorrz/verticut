@@ -41,6 +41,26 @@ function toggleHudProbe() {
 // ── Draw (always-on — drag empty canvas to create a zone) ─────────────────────
 function startDrawZone() { toast('Drag on the video to draw a new zone'); }
 
+// ── Tool selector ─────────────────────────────────────────────────────────────
+function setTool(name) {
+  // Cancel any in-progress drawing
+  if (currentTool === 'pen' && penPoints.length > 0) {
+    penPoints = []; penCursorPos = null;
+  }
+  if (drawing) { drawing = false; drawGuide.style.display = 'none'; }
+  currentTool = name;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('tool-' + name);
+  if (btn) btn.classList.add('active');
+  // Ellipse draw-guide gets rounded corners
+  if (name === 'ellipse') drawGuide.classList.add('ellipse');
+  else drawGuide.classList.remove('ellipse');
+  // Pen mode gets a crosshair cursor on the canvas
+  canvasCont.style.cursor = (name === 'pen') ? 'crosshair' : '';
+  const hints = { rect: 'Rectangle — drag to draw', ellipse: 'Ellipse — drag to draw', pen: 'Pen — click to place polygon points, click \u2460 to close or dbl-click' };
+  toast(hints[name] || name);
+}
+
 // ── Source canvas interaction ─────────────────────────────────────────────────
 canvasCont.addEventListener('mousedown', e => {
   if (e.button === 1) return; // middle-mouse handled by wrap
@@ -76,8 +96,43 @@ canvasCont.addEventListener('mousedown', e => {
     return;
   }
 
+  // ── Pen tool: click to add points ──────────────────────────────────────────
+  if (currentTool === 'pen') {
+    e.preventDefault();
+    const vxR = Math.round(vidX), vyR = Math.round(vidY);
+    // Close polygon when clicking near first point (≥3 pts placed)
+    if (penPoints.length >= 3) {
+      const fp = penPoints[0];
+      const fpCx = fp.x * srcScale, fpCy = fp.y * srcScale;
+      if (Math.abs(canvasX - fpCx) <= 12 && Math.abs(canvasY - fpCy) <= 12) {
+        addZonePolygon(penPoints); return;
+      }
+    }
+    penPoints.push({ x: vxR, y: vyR });
+    return;
+  }
+
+  // ── Polygon point handles (check before bbox handles) ─────────────────────
   for (let i = zones.length - 1; i >= 0; i--) {
     const z = zones[i];
+    if (z.shape !== 'polygon' || !z.points) continue;
+    const PH = 10;
+    for (let pi = 0; pi < z.points.length; pi++) {
+      const px = z.points[pi].x * srcScale, py = z.points[pi].y * srcScale;
+      if (Math.abs(canvasX - px) <= PH && Math.abs(canvasY - py) <= PH) {
+        pushUndo();
+        srcResizing = true; srcResizeZone = z; srcResizeHandle = `poly:${pi}`;
+        srcResizeStartX = vidX; srcResizeStartY = vidY;
+        srcResizeOrigX = z.points[pi].x; srcResizeOrigY = z.points[pi].y;
+        selectZone(z.id); return;
+      }
+    }
+  }
+
+  // ── Bbox resize handles for rect / ellipse ────────────────────────────────
+  for (let i = zones.length - 1; i >= 0; i--) {
+    const z = zones[i];
+    if (z.shape === 'polygon') continue; // polygon points handled above
     const sx = z.src.x * srcScale, sy = z.src.y * srcScale, sw = z.src.w * srcScale, sh = z.src.h * srcScale;
     const hit = hitHandle(zoneHandlePts(sx, sy, sw, sh), canvasX, canvasY, HP);
     if (hit) {
@@ -90,37 +145,67 @@ canvasCont.addEventListener('mousedown', e => {
     }
   }
 
+  // ── Zone body drag ────────────────────────────────────────────────────────
   for (let i = zones.length - 1; i >= 0; i--) {
     const z = zones[i];
-    const sx = z.src.x * srcScale, sy = z.src.y * srcScale, sw = z.src.w * srcScale, sh = z.src.h * srcScale;
-    if (canvasX >= sx && canvasX <= sx + sw && canvasY >= sy && canvasY <= sy + sh) {
+    let hit = false;
+    if (z.shape === 'polygon' && z.points) {
+      hit = pointInPolygon(vidX, vidY, z.points);
+    } else {
+      const sx = z.src.x * srcScale, sy = z.src.y * srcScale, sw = z.src.w * srcScale, sh = z.src.h * srcScale;
+      hit = (canvasX >= sx && canvasX <= sx + sw && canvasY >= sy && canvasY <= sy + sh);
+    }
+    if (hit) {
       pushUndo();
       srcDragging = true; srcDragZone = z;
-      srcDragOffX = vidX - z.src.x; srcDragOffY = vidY - z.src.y;
+      if (z.shape === 'polygon') {
+        // Store snapshot of all points for whole-polygon translate
+        z._dragOrigPoints = z.points.map(p => ({ x: p.x, y: p.y }));
+        z._dragStartVX = vidX; z._dragStartVY = vidY;
+      } else {
+        srcDragOffX = vidX - z.src.x; srcDragOffY = vidY - z.src.y;
+      }
       selectZone(z.id); return;
     }
   }
 
-  // No zone hit — start drawing a new zone
+  // ── No zone hit — start drawing (rect or ellipse) ─────────────────────────
   drawStartX = canvasX; drawStartY = canvasY; drawing = true;
-  drawGuide.style.cssText = `display:block;left:${canvasX}px;top:${canvasY}px;width:0;height:0;position:absolute;z-index:10;border:2px dashed var(--accent);background:rgba(0,245,160,0.08);`;
+  const ellMode = currentTool === 'ellipse';
+  drawGuide.style.cssText = `display:block;left:${canvasX}px;top:${canvasY}px;width:0;height:0;position:absolute;z-index:10;border:2px dashed var(--accent);background:rgba(0,245,160,0.08);${ellMode ? 'border-radius:50%;' : ''}`;
 });
 
 canvasCont.addEventListener('mousemove', e => {
-  if (!drawing) return;
   const r = canvasCont.getBoundingClientRect();
   const cx = (e.clientX - r.left) / srcZoom, cy = (e.clientY - r.top) / srcZoom;
+  if (currentTool === 'pen') {
+    penCursorPos = { x: cx, y: cy }; return;
+  }
+  if (!drawing) return;
   const x = Math.min(drawStartX, cx), y = Math.min(drawStartY, cy), w = Math.abs(cx - drawStartX), h = Math.abs(cy - drawStartY);
   drawGuide.style.left = x + 'px'; drawGuide.style.top = y + 'px'; drawGuide.style.width = w + 'px'; drawGuide.style.height = h + 'px';
 });
 
 canvasCont.addEventListener('mouseup', e => {
+  if (currentTool === 'pen') return; // pen uses click, not drag
   if (!drawing) return; drawing = false; drawGuide.style.display = 'none';
   const r = canvasCont.getBoundingClientRect();
   const cx = (e.clientX - r.left) / srcZoom, cy = (e.clientY - r.top) / srcZoom;
   const x = Math.min(drawStartX, cx), y = Math.min(drawStartY, cy), w = Math.abs(cx - drawStartX), h = Math.abs(cy - drawStartY);
   if (w < 15 || h < 15) return;
-  addZone(Math.round(x / srcScale), Math.round(y / srcScale), Math.round(w / srcScale), Math.round(h / srcScale));
+  addZone(Math.round(x / srcScale), Math.round(y / srcScale), Math.round(w / srcScale), Math.round(h / srcScale),
+    currentTool === 'ellipse' ? 'ellipse' : 'rect');
+});
+
+// Double-click on canvas: close pen polygon, or reset zoom
+canvasCont.addEventListener('dblclick', e => {
+  if (currentTool === 'pen' && penPoints.length >= 3) {
+    e.preventDefault();
+    // The second click of the double-click already added a point via mousedown — pop it
+    penPoints.pop();
+    if (penPoints.length >= 3) addZonePolygon(penPoints);
+    return;
+  }
 });
 
 // ── Output canvas interaction ─────────────────────────────────────────────────
@@ -205,7 +290,7 @@ window.addEventListener('mousemove', e => {
     }
     if (outResizing && outResizeZone) {
       const z = outResizeZone, dx = mx - outResizeStartX, dy = my - outResizeStartY;
-      const freeResize = !z.arLocked ? true : e.shiftKey;
+      const freeResize = (z.shape === 'polygon') ? false : (!z.arLocked ? true : e.shiftKey);
       const r = applyResize(outResizeOrigX, outResizeOrigY, outResizeOrigW, outResizeOrigH, outResizeHandle, dx, dy, freeResize, 40, 40, OUT_W, OUT_H);
       z.dst.x = r.x; z.dst.y = r.y; z.dst.w = r.w; z.dst.h = r.h;
       refreshZoneDst(z);
@@ -219,39 +304,73 @@ window.addEventListener('mousemove', e => {
     const mx = (e.clientX - r.left) / srcZoom / srcScale, my = (e.clientY - r.top) / srcZoom / srcScale;
     if (srcDragging && srcDragZone) {
       const z = srcDragZone;
-      z.src.x = Math.round(mx - srcDragOffX);
-      z.src.y = Math.round(my - srcDragOffY);
-      applySrcSnap(z);
+      if (z.shape === 'polygon' && z._dragOrigPoints) {
+        // Translate entire polygon
+        const ddx = Math.round(mx - z._dragStartVX);
+        const ddy = Math.round(my - z._dragStartVY);
+        z.points = z._dragOrigPoints.map(p => ({
+          x: Math.max(0, Math.min(videoInfo.width,  p.x + ddx)),
+          y: Math.max(0, Math.min(videoInfo.height, p.y + ddy))
+        }));
+        z.src = polygonBBox(z.points);
+      } else {
+        z.src.x = Math.round(mx - srcDragOffX);
+        z.src.y = Math.round(my - srcDragOffY);
+        applySrcSnap(z);
+      }
       refreshSrcInputs(z);
     }
     if (srcResizing && srcResizeZone) {
-      const z = srcResizeZone, dx = mx - srcResizeStartX, dy = my - srcResizeStartY;
-      const freeResize = !z.arLocked ? true : e.shiftKey;
-      const r = applyResize(srcResizeOrigX, srcResizeOrigY, srcResizeOrigW, srcResizeOrigH, srcResizeHandle, dx, dy, freeResize, 20, 20, videoInfo.width, videoInfo.height);
-      z.src.x = r.x; z.src.y = r.y; z.src.w = r.w; z.src.h = r.h;
-      refreshSrcInputs(z);
-      if (z.arLocked) {
-        const newAspect = z.src.w / z.src.h;
-        z.dst.h = Math.round(z.dst.w / newAspect);
-        refreshZoneDst(z);
+      const z = srcResizeZone;
+      if (typeof srcResizeHandle === 'string' && srcResizeHandle.startsWith('poly:')) {
+        // Drag an individual polygon point
+        const pi = parseInt(srcResizeHandle.slice(5));
+        z.points[pi].x = Math.max(0, Math.min(videoInfo.width,  Math.round(srcResizeOrigX + (mx - srcResizeStartX))));
+        z.points[pi].y = Math.max(0, Math.min(videoInfo.height, Math.round(srcResizeOrigY + (my - srcResizeStartY))));
+        z.src = polygonBBox(z.points);
+        refreshSrcInputs(z);
+      } else {
+        const dx = mx - srcResizeStartX, dy = my - srcResizeStartY;
+        const freeResize = !z.arLocked ? true : e.shiftKey;
+        const res = applyResize(srcResizeOrigX, srcResizeOrigY, srcResizeOrigW, srcResizeOrigH, srcResizeHandle, dx, dy, freeResize, 20, 20, videoInfo.width, videoInfo.height);
+        z.src.x = res.x; z.src.y = res.y; z.src.w = res.w; z.src.h = res.h;
+        refreshSrcInputs(z);
+        if (z.arLocked) {
+          const newAspect = z.src.w / z.src.h;
+          z.dst.h = Math.round(z.dst.w / newAspect);
+          refreshZoneDst(z);
+        }
       }
     }
     return;
   }
 
   // Hover cursor on source canvas
-  if (videoEl && !drawing) {
+  if (videoEl && !drawing && currentTool !== 'pen') {
     const r = canvasCont.getBoundingClientRect();
     if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
       const cx = (e.clientX - r.left) / srcZoom, cy = (e.clientY - r.top) / srcZoom;
       const HP = 14;
       let cursor = 'crosshair';
-      for (let i = zones.length - 1; i >= 0; i--) {
+      outerLoop: for (let i = zones.length - 1; i >= 0; i--) {
         const z = zones[i];
-        const sx = z.src.x * srcScale, sy = z.src.y * srcScale, sw = z.src.w * srcScale, sh = z.src.h * srcScale;
-        const hit = hitHandle(zoneHandlePts(sx, sy, sw, sh), cx, cy, HP);
-        if (hit) { cursor = HANDLE_CURSORS[hit]; break; }
-        if (cx >= sx && cx <= sx + sw && cy >= sy && cy <= sy + sh) { cursor = 'move'; break; }
+        // Polygon point handle hover
+        if (z.shape === 'polygon' && z.points) {
+          for (const p of z.points) {
+            if (Math.abs(cx - p.x * srcScale) <= 8 && Math.abs(cy - p.y * srcScale) <= 8) {
+              cursor = 'move'; break outerLoop;
+            }
+          }
+          if (pointInPolygon(cx / srcScale, cy / srcScale, z.points)) { cursor = 'move'; break; }
+        } else {
+          const sx = z.src.x * srcScale, sy = z.src.y * srcScale, sw = z.src.w * srcScale, sh = z.src.h * srcScale;
+          const hit = hitHandle(zoneHandlePts(sx, sy, sw, sh), cx, cy, HP);
+          if (hit) { cursor = HANDLE_CURSORS[hit]; break; }
+          if (z.shape === 'ellipse') {
+            const ecx = sx + sw / 2, ecy = sy + sh / 2, rx = sw / 2, ry = sh / 2;
+            if (rx > 0 && ry > 0 && ((cx - ecx) / rx) ** 2 + ((cy - ecy) / ry) ** 2 <= 1) { cursor = 'move'; break; }
+          } else if (cx >= sx && cx <= sx + sw && cy >= sy && cy <= sy + sh) { cursor = 'move'; break; }
+        }
       }
       canvasCont.style.cursor = cursor;
     }
@@ -265,6 +384,12 @@ window.addEventListener('mouseup', () => {
     if (videoEl) setupCanvases();
   }
   tlDragging = null;
+  // Clean up polygon drag snapshot fields
+  if (srcDragZone && srcDragZone.shape === 'polygon') {
+    delete srcDragZone._dragOrigPoints;
+    delete srcDragZone._dragStartVX;
+    delete srcDragZone._dragStartVY;
+  }
   outDragging = false; outDragZone = null; outResizing = false; outResizeZone = null;
   srcDragging = false; srcDragZone = null; srcResizing = false; srcResizeZone = null;
   srcPanning = false; outPanning = false;
@@ -363,8 +488,16 @@ document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'c') { e.preventDefault(); copyZone(); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'v') { e.preventDefault(); pasteZone(); }
   if (e.key === 'F1') { e.preventDefault(); toggleHelp(); }
-  if (e.key === 'Escape') { closeHelp(); selectedPixel = null; settingProbeForZone = null; }
+  if (e.key === 'Escape') {
+    closeHelp(); selectedPixel = null; settingProbeForZone = null;
+    if (penPoints.length > 0) { penPoints = []; penCursorPos = null; toast('Pen cancelled'); }
+  }
   if (e.altKey && e.key === 'p') { e.preventDefault(); toggleHudProbe(); }
+  if (!e.altKey && !e.ctrlKey && !e.metaKey) {
+    if (e.key === 'r' || e.key === 'R') { e.preventDefault(); setTool('rect'); }
+    if (e.key === 'e' || e.key === 'E') { e.preventDefault(); setTool('ellipse'); }
+    if (e.key === 'p' || e.key === 'P') { e.preventDefault(); setTool('pen'); }
+  }
 });
 
 // ── Help modal ────────────────────────────────────────────────────────────────

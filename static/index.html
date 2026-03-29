@@ -44,6 +44,11 @@
 
       <div class="input-header">
         <div class="section-title" style="flex:1">Input · 16:9</div>
+        <div class="tool-switcher" id="tool-switcher">
+          <button class="tool-btn active" id="tool-rect"    onclick="setTool('rect')"    title="Rectangle — drag to draw (R)">&#9645;</button>
+          <button class="tool-btn"        id="tool-ellipse" onclick="setTool('ellipse')" title="Ellipse — drag to draw (E)">&#9711;</button>
+          <button class="tool-btn"        id="tool-pen"     onclick="setTool('pen')"     title="Pen — click to place points (P)">&#9676;</button>
+        </div>
         <button class="outline-toggle" id="input-outline-btn" onclick="toggleInputOutlines()" style="display:none">⬡ outlines</button>
       </div>
       <div class="canvas-wrap" id="canvas-wrap">
@@ -156,7 +161,10 @@
           <tr><td>Paste zone</td><td><kbd>Ctrl</kbd>+<kbd>V</kbd></td></tr>
           <tr><td>Open help</td><td><kbd>F1</kbd></td></tr>
           <tr><td>Toggle HUD probe</td><td><kbd>Alt</kbd>+<kbd>P</kbd></td></tr>
-          <tr><td>Clear pixel selection</td><td><kbd>Escape</kbd></td></tr>
+          <tr><td>Rectangle tool</td><td><kbd>R</kbd></td></tr>
+          <tr><td>Ellipse tool</td><td><kbd>E</kbd></td></tr>
+          <tr><td>Pen / polygon tool</td><td><kbd>P</kbd></td></tr>
+          <tr><td>Cancel pen / clear selection</td><td><kbd>Escape</kbd></td></tr>
         </table>
         <div class="help-sub-title">Mouse Controls</div>
         <table class="help-table">

@@ -67,6 +67,80 @@ function updatePreset(id) {
   toast(`"${list[idx].name}" updated`);
 }
 
+// ── Export / Import ───────────────────────────────────────────────────────────
+function exportPreset(id) {
+  const preset = getPresets().find(p => p.id === id);
+  if (!preset) return toast('Preset not found');
+  const slug = preset.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const blob = new Blob([JSON.stringify(preset, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `verticut-preset-${slug}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast(`Exported "${preset.name}"`);
+}
+
+function exportAllPresets() {
+  const presets = getPresets();
+  if (!presets.length) return toast('No presets to export');
+  const blob = new Blob([JSON.stringify(presets, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `verticut-presets-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast(`Exported ${presets.length} preset${presets.length !== 1 ? 's' : ''}`);
+}
+
+function importPresets() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.addEventListener('change', () => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        let raw = JSON.parse(reader.result);
+        // Accept both a single preset object and an array of presets
+        const imported = Array.isArray(raw) ? raw : [raw];
+        // Validate basic shape
+        for (const p of imported) {
+          if (!p.name || !Array.isArray(p.zones)) throw new Error('invalid preset format');
+        }
+        // Merge: skip duplicates by id, append new ones
+        const existing = getPresets();
+        const existingIds = new Set(existing.map(p => p.id));
+        let added = 0;
+        for (const p of imported) {
+          if (!existingIds.has(p.id)) {
+            existing.push(p);
+            added++;
+          }
+        }
+        storePresets(existing);
+        renderPresetsList();
+        toast(added > 0
+          ? `Imported ${added} new preset${added !== 1 ? 's' : ''}${imported.length - added > 0 ? ` (${imported.length - added} already existed)` : ''}`
+          : `All ${imported.length} preset${imported.length !== 1 ? 's' : ''} already exist`
+        );
+      } catch (e) {
+        toast('Invalid preset file: ' + e.message);
+      }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+}
+
 function renderPresetsList() {
   const list = document.getElementById('presets-list');
   const presets = getPresets(); list.innerHTML = '';
@@ -88,8 +162,9 @@ function renderPresetsList() {
   presets.slice().reverse().forEach(p => {
     const d = new Date(p.updatedAt || p.createdAt), card = document.createElement('div');
     card.className = 'preset-card';
-    card.innerHTML = `<div class="preset-info"><div class="preset-name">${escHtml(p.name)}</div><div class="preset-meta">${d.getMonth() + 1}/${d.getDate()} · ${p.zones.length} zone${p.zones.length !== 1 ? 's' : ''}</div></div><button class="preset-btn apply-btn">Apply</button><button class="preset-btn upd-btn" title="Overwrite with current layout">↺</button><button class="preset-btn del del-btn">✕</button>`;
+    card.innerHTML = `<div class="preset-info"><div class="preset-name">${escHtml(p.name)}</div><div class="preset-meta">${d.getMonth() + 1}/${d.getDate()} · ${p.zones.length} zone${p.zones.length !== 1 ? 's' : ''}</div></div><button class="preset-btn apply-btn">Apply</button><button class="preset-btn exp-btn" title="Export this preset">⤓</button><button class="preset-btn upd-btn" title="Overwrite with current layout">↺</button><button class="preset-btn del del-btn">✕</button>`;
     card.querySelector('.apply-btn').addEventListener('click', () => applyPreset(p));
+    card.querySelector('.exp-btn').addEventListener('click', () => exportPreset(p.id));
     card.querySelector('.upd-btn').addEventListener('click', () => updatePreset(p.id));
     card.querySelector('.del-btn').addEventListener('click', () => deletePreset(p.id));
     list.appendChild(card);

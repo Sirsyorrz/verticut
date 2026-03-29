@@ -20,9 +20,13 @@ function confirmSavePreset() {
   const preset = { id: Date.now().toString(), name, createdAt: Date.now(),
     zones: zones.map(z => ({
       label: z.label, color: z.color, blur: z.blur || 0,
+      shape: z.shape || 'rect',
       hudProbes: z.hudProbes ? z.hudProbes.map(p => ({...p})) : undefined,
       srcPct: { x: z.src.x / videoInfo.width, y: z.src.y / videoInfo.height, w: z.src.w / videoInfo.width, h: z.src.h / videoInfo.height },
-      dstPct: { x: z.dst.x / OUT_W, y: z.dst.y / OUT_H, w: z.dst.w / OUT_W, h: z.dst.h / OUT_H }
+      dstPct: { x: z.dst.x / OUT_W, y: z.dst.y / OUT_H, w: z.dst.w / OUT_W, h: z.dst.h / OUT_H },
+      ...(z.shape === 'polygon' && z.points ? {
+        pointsPct: z.points.map(p => ({ x: p.x / videoInfo.width, y: p.y / videoInfo.height }))
+      } : {})
     }))
   };
   const list = getPresets(); list.push(preset); storePresets(list);
@@ -32,19 +36,31 @@ function confirmSavePreset() {
 function applyPreset(preset) {
   if (!videoEl) return toast('Load a video first, then apply a preset');
   pushUndo();
-  zones = preset.zones.map(pz => ({
-    id: Date.now().toString() + Math.random().toString(36).slice(2),
-    label: pz.label, color: pz.color, disabled: false, blur: pz.blur || 0,
-    src: {
-      x: Math.round(pz.srcPct.x * videoInfo.width), y: Math.round(pz.srcPct.y * videoInfo.height),
-      w: Math.max(1, Math.round(pz.srcPct.w * videoInfo.width)), h: Math.max(1, Math.round(pz.srcPct.h * videoInfo.height))
-    },
-    dst: {
-      x: Math.round(pz.dstPct.x * OUT_W), y: Math.round(pz.dstPct.y * OUT_H),
-      w: Math.max(1, Math.round(pz.dstPct.w * OUT_W)), h: Math.max(1, Math.round(pz.dstPct.h * OUT_H))
-    },
-    ...(pz.hudProbes ? { hudProbes: pz.hudProbes.map(p => ({...p})) } : {})
-  }));
+  zones = preset.zones.map(pz => {
+    const z = {
+      id: Date.now().toString() + Math.random().toString(36).slice(2),
+      label: pz.label, color: pz.color, disabled: false, blur: pz.blur || 0,
+      shape: pz.shape || 'rect',
+      arLocked: pz.shape === 'polygon' ? false : true,
+      src: {
+        x: Math.round(pz.srcPct.x * videoInfo.width), y: Math.round(pz.srcPct.y * videoInfo.height),
+        w: Math.max(1, Math.round(pz.srcPct.w * videoInfo.width)), h: Math.max(1, Math.round(pz.srcPct.h * videoInfo.height))
+      },
+      dst: {
+        x: Math.round(pz.dstPct.x * OUT_W), y: Math.round(pz.dstPct.y * OUT_H),
+        w: Math.max(1, Math.round(pz.dstPct.w * OUT_W)), h: Math.max(1, Math.round(pz.dstPct.h * OUT_H))
+      }
+    };
+    if (pz.hudProbes) z.hudProbes = pz.hudProbes.map(p => ({...p}));
+    if (pz.shape === 'polygon' && pz.pointsPct) {
+      z.points = pz.pointsPct.map(p => ({
+        x: Math.round(p.x * videoInfo.width),
+        y: Math.round(p.y * videoInfo.height)
+      }));
+      z.src = polygonBBox(z.points); // recalculate to match current video resolution
+    }
+    return z;
+  });
   selectedZoneId = null; colorIdx = zones.length;
   renderZonesList(); toast(`Applied "${preset.name}" — ${preset.zones.length} zone${preset.zones.length !== 1 ? 's' : ''} loaded`);
 }
@@ -57,9 +73,13 @@ function updatePreset(id) {
   const idx = list.findIndex(p => p.id === id); if (idx === -1) return;
   list[idx].zones = zones.map(z => ({
     label: z.label, color: z.color, blur: z.blur || 0,
+    shape: z.shape || 'rect',
     hudProbes: z.hudProbes ? z.hudProbes.map(p => ({...p})) : undefined,
     srcPct: { x: z.src.x / videoInfo.width, y: z.src.y / videoInfo.height, w: z.src.w / videoInfo.width, h: z.src.h / videoInfo.height },
-    dstPct: { x: z.dst.x / OUT_W, y: z.dst.y / OUT_H, w: z.dst.w / OUT_W, h: z.dst.h / OUT_H }
+    dstPct: { x: z.dst.x / OUT_W, y: z.dst.y / OUT_H, w: z.dst.w / OUT_W, h: z.dst.h / OUT_H },
+    ...(z.shape === 'polygon' && z.points ? {
+      pointsPct: z.points.map(p => ({ x: p.x / videoInfo.width, y: p.y / videoInfo.height }))
+    } : {})
   }));
   list[idx].updatedAt = Date.now();
   storePresets(list);

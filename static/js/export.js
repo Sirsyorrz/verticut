@@ -48,7 +48,15 @@ async function exportVideo() {
       src_x: z.src.x, src_y: z.src.y, src_w: z.src.w, src_h: z.src.h,
       dst_x: Math.round(z.dst.x * scaleX), dst_y: Math.round(z.dst.y * scaleY),
       dst_w: Math.max(1, Math.round(z.dst.w * scaleX)), dst_h: Math.max(1, Math.round(z.dst.h * scaleY)),
-      label: z.label, blur: z.blur || 0
+      label: z.label, blur: z.blur || 0,
+      shape: z.shape || 'rect',
+      // Polygon points normalized 0-1 relative to src bbox (future server-side use)
+      ...(z.shape === 'polygon' && z.points && z.src.w > 0 && z.src.h > 0 ? {
+        points: z.points.map(p => ({
+          x: (p.x - z.src.x) / z.src.w,
+          y: (p.y - z.src.y) / z.src.h
+        }))
+      } : {})
     }))
   };
   let jobId;

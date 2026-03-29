@@ -23,6 +23,11 @@ let analyserNodes = [];
 let gainNodes     = [];
 let vizCanvases   = [];
 
+// Tool selection & pen state
+let currentTool = 'rect'; // 'rect' | 'ellipse' | 'pen'
+let penPoints = [];        // [{x, y}] video coords — in-progress polygon
+let penCursorPos = null;   // {x, y} canvas coords for rubber-band line
+
 // Source canvas interaction state
 let drawing = false, drawStartX, drawStartY;
 let srcDragging = false, srcDragZone = null, srcDragOffX = 0, srcDragOffY = 0;

@@ -294,3 +294,18 @@ kbd { display: inline-block; padding: 1px 6px; background: var(--bg); border: 1p
 .modal-btn.confirm { background:var(--accent); border-color:var(--accent); color:#000; font-weight:700; }
 .modal-btn.confirm:hover { opacity:0.9; }
 .modal-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+/* ── Tool switcher ─────────────────────────────────────────────────────────── */
+.tool-switcher { display:flex; gap:2px; padding:2px; background:var(--bg); border:1px solid var(--border); border-radius:6px; align-items:center; }
+.tool-btn { background:transparent; border:none; border-radius:4px; color:var(--text-dim); font-size:1rem; width:28px; height:26px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.15s; flex-shrink:0; }
+.tool-btn:hover { color:var(--text); background:rgba(255,255,255,0.06); }
+.tool-btn.active { background:var(--surface3); color:var(--accent); }
+
+/* Ellipse draw-guide preview */
+#draw-guide.ellipse { border-radius:50%; }
+
+/* Zone shape badge in card header */
+.zone-shape-badge { font-size:0.52rem; font-family:var(--font-mono); color:var(--text-dim); border:1px solid var(--border); border-radius:3px; padding:1px 4px; flex-shrink:0; text-transform:uppercase; letter-spacing:0.05em; }
+
+/* Polygon zone hint in card */
+.zone-poly-hint { font-size:0.6rem; font-family:var(--font-mono); color:var(--text-dim); padding:4px 6px 2px; line-height:1.5; }

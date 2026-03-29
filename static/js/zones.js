@@ -11,20 +11,21 @@ function startSetProbe(id) {
   toast(`Alt+Click on source canvas to set probe pixel for "${z ? z.label : 'zone'}"`);
 }
 
-function removeProbe(id) {
+function removeProbe(id, idx) {
   const z = zones.find(z => z.id === id);
-  if (z) { delete z.hudProbe; delete z._hudOpacity; }
+  if (!z || !z.hudProbes) return;
+  if (idx !== undefined) {
+    z.hudProbes.splice(idx, 1);
+  } else {
+    z.hudProbes = [];
+  }
+  if (!z.hudProbes.length) { delete z.hudProbes; delete z._hudOpacity; }
   renderZonesList();
 }
 
-function setProbeThreshold(id, val) {
+function setProbeThreshold(id, idx, val) {
   const z = zones.find(z => z.id === id);
-  if (z && z.hudProbe) z.hudProbe.threshold = val;
-}
-
-function setProbeMaxVariance(id, val) {
-  const z = zones.find(z => z.id === id);
-  if (z && z.hudProbe) z.hudProbe.maxVariance = val;
+  if (z && z.hudProbes && z.hudProbes[idx]) z.hudProbes[idx].threshold = val;
 }
 
 function selectZone(id) {
@@ -334,21 +335,18 @@ function renderZonesList() {
         <span class="scale-pct" id="blur-val-${z.id}" style="color:#a78bfa">${z.blur > 0 ? (z.blur + 'px') : 'off'}</span>
       </div>
       <div class="zone-actions" style="margin-top:3px;border-top:1px solid var(--border);padding-top:4px">
-        <button class="zone-action-btn probe-set-btn" id="probe-btn-${z.id}" onclick="event.stopPropagation();startSetProbe('${z.id}')" title="Alt+Click source canvas to set probe pixel">⊙ set probe</button>
-        ${z.hudProbe ? `<span class="probe-info" style="font-size:.65rem;color:var(--text-dim);font-family:var(--font-mono)">(${z.hudProbe.x},${z.hudProbe.y})</span>
-        <button class="zone-action-btn" onclick="event.stopPropagation();removeProbe('${z.id}')" title="Remove probe point" style="padding:0 4px;min-width:auto">✕</button>
+        <button class="zone-action-btn probe-set-btn" id="probe-btn-${z.id}" onclick="event.stopPropagation();startSetProbe('${z.id}')" title="Alt+Click source canvas to add probe point">⊙ add probe</button>
+        ${(z.hudProbes && z.hudProbes.length) ? `<button class="zone-action-btn" onclick="event.stopPropagation();removeProbe('${z.id}')" title="Remove all probes" style="padding:0 4px;min-width:auto">✕ all</button>` : ''}
       </div>
-      <div class="zone-actions" style="margin-top:2px;gap:3px">
-        <span class="ci-label" style="font-size:.6rem;color:var(--text-dim);min-width:24px">BRI</span>
-        <input type="range" class="scale-slider" style="flex:1;min-width:40px" min="1" max="255" step="1" value="${z.hudProbe.threshold}"
-          oninput="setProbeThreshold('${z.id}',+this.value)" onclick="event.stopPropagation()" title="Min brightness to consider HUD visible">
-        <span style="font-size:.6rem;color:var(--text-dim);min-width:20px">${z.hudProbe.threshold}</span>
-      </div>
-      <div class="zone-actions" style="margin-top:2px;gap:3px">
-        <span class="ci-label" style="font-size:.6rem;color:var(--text-dim);min-width:24px">VAR</span>
-        <input type="range" class="scale-slider" style="flex:1;min-width:40px" min="10" max="2000" step="10" value="${z.hudProbe.maxVariance ?? 400}"
-          oninput="setProbeMaxVariance('${z.id}',+this.value)" onclick="event.stopPropagation()" title="Max color variance — lower = stricter (rejects gameplay noise)">
-        <span style="font-size:.6rem;color:var(--text-dim);min-width:20px">${z.hudProbe.maxVariance ?? 400}</span>` : ''}
+      ${(z.hudProbes || []).map((p, pi) => `
+      <div class="zone-actions" style="margin-top:2px;gap:3px;align-items:center">
+        <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgb(${p.r},${p.g},${p.b});flex-shrink:0" title="rgb(${p.r},${p.g},${p.b})"></span>
+        <span style="font-size:.55rem;color:var(--text-dim);font-family:var(--font-mono);flex-shrink:0">(${p.x},${p.y})</span>
+        <input type="range" class="scale-slider" style="flex:1;min-width:30px" min="5" max="200" step="1" value="${p.threshold}"
+          oninput="setProbeThreshold('${z.id}',${pi},+this.value)" onclick="event.stopPropagation()" title="Max color distance — lower = stricter match">
+        <span style="font-size:.55rem;color:var(--text-dim);min-width:16px">${p.threshold}</span>
+        <button class="zone-action-btn" onclick="event.stopPropagation();removeProbe('${z.id}',${pi})" style="padding:0 3px;min-width:auto;font-size:.6rem" title="Remove this probe">✕</button>
+      </div>`).join('')}
       </div>
     `;
 

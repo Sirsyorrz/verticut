@@ -61,22 +61,23 @@ function drawOverlay() {
 
   // Draw HUD probe points on source overlay
   zones.forEach(z => {
-    if (!z.hudProbe) return;
-    const px = z.hudProbe.x * srcScale, py = z.hudProbe.y * srcScale;
-    ovCtx.beginPath();
-    ovCtx.arc(px, py, 5, 0, Math.PI * 2);
-    if (hudProbeMode) {
-      ovCtx.fillStyle = z.color;
+    if (!z.hudProbes || !z.hudProbes.length) return;
+    z.hudProbes.forEach((p, pi) => {
+      const px = p.x * srcScale, py = p.y * srcScale;
+      // Color swatch dot
+      ovCtx.beginPath();
+      ovCtx.arc(px, py, 5, 0, Math.PI * 2);
+      ovCtx.fillStyle = `rgb(${p.r},${p.g},${p.b})`;
       ovCtx.fill();
-    } else {
+      // Zone-colored ring
       ovCtx.strokeStyle = z.color;
-      ovCtx.lineWidth = 1.5;
+      ovCtx.lineWidth = hudProbeMode ? 2 : 1;
       ovCtx.stroke();
-    }
-    // Small label
-    ovCtx.font = '9px JetBrains Mono,monospace';
-    ovCtx.fillStyle = z.color;
-    ovCtx.fillText('⊙', px + 7, py + 3);
+      // Index label
+      ovCtx.font = '8px JetBrains Mono,monospace';
+      ovCtx.fillStyle = z.color;
+      ovCtx.fillText(`${pi + 1}`, px + 7, py + 3);
+    });
   });
 
   // Draw selected pixel crosshair & info tooltip
@@ -124,7 +125,7 @@ function drawOutput() {
 
   zones.forEach((z, i) => {
     if (z.disabled) return;
-    const probeOpacity = (hudProbeMode && z.hudProbe && z._hudOpacity !== undefined) ? z._hudOpacity : 1;
+    const probeOpacity = (hudProbeMode && z.hudProbes && z.hudProbes.length && z._hudOpacity !== undefined) ? z._hudOpacity : 1;
     if (probeOpacity <= 0) return;
     const dx = z.dst.x * outScale, dy = z.dst.y * outScale, dw = z.dst.w * outScale, dh = z.dst.h * outScale;
     const isSelected = selectedZoneId === z.id;
@@ -176,40 +177,39 @@ function startLoop() {
       if (!isNaN(videoEl.duration)) {
         document.getElementById('time-current').textContent = fmt(videoEl.currentTime);
       }
-      // HUD probe sampling — 5×5 region, avg brightness + low variance = HUD visible
+      // HUD probe sampling — color-distance match, OR across probes, smooth fade
       if (hudProbeMode) {
-        const probeZones = zones.filter(z => z.hudProbe);
         const PROBE_R = 2; // sample (2*R+1)² = 25 pixels
-        const FADE_SPEED = 0.08; // opacity lerp per frame (~5-6 frames to fully transition)
-        probeZones.forEach(z => {
-          const cx = Math.round(z.hudProbe.x * srcScale);
-          const cy = Math.round(z.hudProbe.y * srcScale);
-          const sz = PROBE_R * 2 + 1;
-          const x0 = Math.max(0, cx - PROBE_R);
-          const y0 = Math.max(0, cy - PROBE_R);
-          const x1 = Math.min(srcCanvas.width, x0 + sz);
-          const y1 = Math.min(srcCanvas.height, y0 + sz);
-          const w = x1 - x0, h = y1 - y0;
-          if (w <= 0 || h <= 0) { z._hudOpacity = (z._hudOpacity ?? 1); return; }
-          const pd = srcCtx.getImageData(x0, y0, w, h).data;
-          const n = w * h;
-          let sumB = 0, sumB2 = 0;
-          for (let i = 0; i < n; i++) {
-            const off = i * 4;
-            const b = (pd[off] + pd[off + 1] + pd[off + 2]) / 3;
-            sumB += b; sumB2 += b * b;
+        const FADE_SPEED = 0.08;
+        zones.forEach(z => {
+          if (!z.hudProbes || !z.hudProbes.length) return;
+          let anyMatch = false;
+          for (const p of z.hudProbes) {
+            const cx = Math.round(p.x * srcScale);
+            const cy = Math.round(p.y * srcScale);
+            const x0 = Math.max(0, cx - PROBE_R);
+            const y0 = Math.max(0, cy - PROBE_R);
+            const sz = PROBE_R * 2 + 1;
+            const x1 = Math.min(srcCanvas.width, x0 + sz);
+            const y1 = Math.min(srcCanvas.height, y0 + sz);
+            const w = x1 - x0, h = y1 - y0;
+            if (w <= 0 || h <= 0) continue;
+            const pd = srcCtx.getImageData(x0, y0, w, h).data;
+            const n = w * h;
+            // Average color of the sampled region
+            let sr = 0, sg = 0, sb = 0;
+            for (let i = 0; i < n; i++) {
+              const off = i * 4;
+              sr += pd[off]; sg += pd[off + 1]; sb += pd[off + 2];
+            }
+            sr /= n; sg /= n; sb /= n;
+            // Euclidean color distance to target
+            const dist = Math.sqrt((sr - p.r) ** 2 + (sg - p.g) ** 2 + (sb - p.b) ** 2);
+            if (dist <= p.threshold) { anyMatch = true; break; }
           }
-          const avgB = sumB / n;
-          const variance = sumB2 / n - avgB * avgB;
-          // HUD visible = bright enough AND consistent (low variance)
-          // High variance = gameplay bleeding through = not HUD
-          const maxVar = z.hudProbe.maxVariance ?? 400;
-          const thr = z.hudProbe.threshold;
-          const isHud = avgB >= thr && variance < maxVar;
-          const target = isHud ? 1 : 0;
+          const target = anyMatch ? 1 : 0;
           const prev = z._hudOpacity ?? 1;
           z._hudOpacity = prev + (target - prev) * FADE_SPEED;
-          // Clamp near endpoints to avoid permanent ghosting
           if (z._hudOpacity > 0.99) z._hudOpacity = 1;
           if (z._hudOpacity < 0.01) z._hudOpacity = 0;
         });

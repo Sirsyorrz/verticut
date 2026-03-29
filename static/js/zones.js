@@ -1,6 +1,27 @@
 // ── Zone management ───────────────────────────────────────────────────────────
 let _renderedZoneIds = new Set();
 
+function zonesAtPixel(vx, vy) {
+  return zones.filter(z => vx >= z.src.x && vx <= z.src.x + z.src.w && vy >= z.src.y && vy <= z.src.y + z.src.h);
+}
+
+function startSetProbe(id) {
+  settingProbeForZone = id;
+  const z = zones.find(z => z.id === id);
+  toast(`Alt+Click on source canvas to set probe pixel for "${z ? z.label : 'zone'}"`);
+}
+
+function removeProbe(id) {
+  const z = zones.find(z => z.id === id);
+  if (z) { delete z.hudProbe; delete z._hudVisible; }
+  renderZonesList();
+}
+
+function setProbeThreshold(id, val) {
+  const z = zones.find(z => z.id === id);
+  if (z && z.hudProbe) z.hudProbe.threshold = val;
+}
+
 function selectZone(id) {
   if (selectedZoneId === id) return;
   const oldCard = selectedZoneId ? document.querySelector(`.zone-card[data-zone-id="${selectedZoneId}"]`) : null;
@@ -306,6 +327,13 @@ function renderZonesList() {
           value="${z.blur || 0}"
           onmousedown="pushUndo()" oninput="setZoneBlur('${z.id}',+this.value)" onclick="event.stopPropagation()">
         <span class="scale-pct" id="blur-val-${z.id}" style="color:#a78bfa">${z.blur > 0 ? (z.blur + 'px') : 'off'}</span>
+      </div>
+      <div class="zone-actions" style="margin-top:3px;border-top:1px solid var(--border);padding-top:4px">
+        <button class="zone-action-btn probe-set-btn" id="probe-btn-${z.id}" onclick="event.stopPropagation();startSetProbe('${z.id}')" title="Alt+Click source canvas to set probe pixel">⊙ set probe</button>
+        ${z.hudProbe ? `<span class="probe-info" style="font-size:.65rem;color:var(--text-dim);font-family:var(--font-mono)">(${z.hudProbe.x},${z.hudProbe.y}) thr:${z.hudProbe.threshold}</span>
+        <button class="zone-action-btn" onclick="event.stopPropagation();removeProbe('${z.id}')" title="Remove probe point" style="padding:0 4px;min-width:auto">✕</button>
+        <input type="range" class="scale-slider" style="flex:1;min-width:40px" min="1" max="255" step="1" value="${z.hudProbe.threshold}"
+          oninput="setProbeThreshold('${z.id}',+this.value)" onclick="event.stopPropagation()">` : ''}
       </div>
     `;
 

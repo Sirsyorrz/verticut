@@ -58,6 +58,56 @@ function drawOverlay() {
     }
     ovCtx.globalAlpha = 1;
   });
+
+  // Draw HUD probe points on source overlay
+  zones.forEach(z => {
+    if (!z.hudProbe) return;
+    const px = z.hudProbe.x * srcScale, py = z.hudProbe.y * srcScale;
+    ovCtx.beginPath();
+    ovCtx.arc(px, py, 5, 0, Math.PI * 2);
+    if (hudProbeMode) {
+      ovCtx.fillStyle = z.color;
+      ovCtx.fill();
+    } else {
+      ovCtx.strokeStyle = z.color;
+      ovCtx.lineWidth = 1.5;
+      ovCtx.stroke();
+    }
+    // Small label
+    ovCtx.font = '9px JetBrains Mono,monospace';
+    ovCtx.fillStyle = z.color;
+    ovCtx.fillText('⊙', px + 7, py + 3);
+  });
+
+  // Draw selected pixel crosshair & info tooltip
+  if (selectedPixel) {
+    const cx = selectedPixel.x * srcScale, cy = selectedPixel.y * srcScale;
+    ovCtx.save();
+    ovCtx.strokeStyle = '#fff';
+    ovCtx.lineWidth = 1;
+    ovCtx.setLineDash([3, 3]);
+    // Horizontal line
+    ovCtx.beginPath(); ovCtx.moveTo(0, cy); ovCtx.lineTo(ovCanvas.width, cy); ovCtx.stroke();
+    // Vertical line
+    ovCtx.beginPath(); ovCtx.moveTo(cx, 0); ovCtx.lineTo(cx, ovCanvas.height); ovCtx.stroke();
+    ovCtx.setLineDash([]);
+    // Center dot
+    ovCtx.beginPath(); ovCtx.arc(cx, cy, 4, 0, Math.PI * 2);
+    ovCtx.fillStyle = `rgb(${selectedPixel.r},${selectedPixel.g},${selectedPixel.b})`;
+    ovCtx.fill();
+    ovCtx.strokeStyle = '#fff'; ovCtx.lineWidth = 1.5; ovCtx.stroke();
+    // Info tooltip
+    const label = `(${selectedPixel.x}, ${selectedPixel.y}) rgb(${selectedPixel.r},${selectedPixel.g},${selectedPixel.b})`;
+    ovCtx.font = '10px JetBrains Mono,monospace';
+    const tw = ovCtx.measureText(label).width;
+    const tx = Math.min(cx + 10, ovCanvas.width - tw - 8);
+    const ty = cy > 30 ? cy - 12 : cy + 20;
+    ovCtx.fillStyle = 'rgba(0,0,0,0.75)';
+    ovCtx.fillRect(tx - 4, ty - 11, tw + 8, 15);
+    ovCtx.fillStyle = '#fff';
+    ovCtx.fillText(label, tx, ty);
+    ovCtx.restore();
+  }
 }
 
 function drawOutput() {
@@ -74,6 +124,7 @@ function drawOutput() {
 
   zones.forEach((z, i) => {
     if (z.disabled) return;
+    if (hudProbeMode && z.hudProbe && z._hudVisible === false) return;
     const dx = z.dst.x * outScale, dy = z.dst.y * outScale, dw = z.dst.w * outScale, dh = z.dst.h * outScale;
     const isSelected = selectedZoneId === z.id;
     outCtx.save();
@@ -122,6 +173,23 @@ function startLoop() {
       srcCtx.drawImage(videoEl, 0, 0, srcCanvas.width, srcCanvas.height);
       if (!isNaN(videoEl.duration)) {
         document.getElementById('time-current').textContent = fmt(videoEl.currentTime);
+      }
+      // HUD probe sampling
+      if (hudProbeMode) {
+        const probeZones = zones.filter(z => z.hudProbe);
+        if (probeZones.length > 0) {
+          probeZones.forEach(z => {
+            const sx = Math.round(z.hudProbe.x * srcScale);
+            const sy = Math.round(z.hudProbe.y * srcScale);
+            if (sx >= 0 && sx < srcCanvas.width && sy >= 0 && sy < srcCanvas.height) {
+              const pd = srcCtx.getImageData(sx, sy, 1, 1).data;
+              const brightness = (pd[0] + pd[1] + pd[2]) / 3;
+              z._hudVisible = brightness >= z.hudProbe.threshold;
+            } else {
+              z._hudVisible = true;
+            }
+          });
+        }
       }
     }
     drawOverlay(); drawOutput(); updateTL(); drawAudioViz();

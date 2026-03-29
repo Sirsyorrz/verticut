@@ -16,9 +16,9 @@ Grab the latest portable `.exe` from [**Releases**](https://github.com/Sirsyorrz
 
 ![Drop zone](static/screenshot-empty.png)
 
-![Editor with zones](static/screenshot-editor.png)
+![Editor with zones](static/screenshot-editor.jpg)
 
-![Editor with example](static/screenshot-example.png)
+![Editor with example](static/screenshot-example.jpg)
 ---
 
 ## Features

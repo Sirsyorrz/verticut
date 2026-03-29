@@ -19,6 +19,17 @@ function setupCanvases() {
   outCanvas.style.transform = ''; outCanvas.style.transformOrigin = '';
 }
 
+// ── Reusable off-screen canvases for feather compositing ──────────────────────
+let _ftCanvas = null, _fmCanvas = null;
+function ensureFeatherCanvases(w, h) {
+  if (!_ftCanvas || _ftCanvas.width !== w || _ftCanvas.height !== h) {
+    _ftCanvas = document.createElement('canvas');
+    _ftCanvas.width = w; _ftCanvas.height = h;
+    _fmCanvas = document.createElement('canvas');
+    _fmCanvas.width = w; _fmCanvas.height = h;
+  }
+}
+
 // ── Shape path builder (used by both overlay and output) ─────────────────────
 function buildZonePath(ctx, sx, sy, sw, sh, z) {
   ctx.beginPath();
@@ -209,29 +220,63 @@ function drawOutput() {
     const dx = z.dst.x * outScale, dy = z.dst.y * outScale, dw = z.dst.w * outScale, dh = z.dst.h * outScale;
     const isSelected = selectedZoneId === z.id;
 
-    outCtx.save();
-    if (probeOpacity < 1) outCtx.globalAlpha = probeOpacity;
-    if (z.blur > 0) outCtx.filter = `blur(${z.blur}px)`;
+    if (z.feather > 0) {
+      // ── Feathered rendering via off-screen mask compositing ──────────────
+      ensureFeatherCanvases(outCanvas.width, outCanvas.height);
+      const ftCtx = _ftCanvas.getContext('2d');
+      const fmCtx = _fmCanvas.getContext('2d');
+      ftCtx.clearRect(0, 0, _ftCanvas.width, _ftCanvas.height);
+      fmCtx.clearRect(0, 0, _fmCanvas.width, _fmCanvas.height);
 
-    // Apply clipping mask for non-rect shapes
-    if (z.shape === 'ellipse') {
-      outCtx.beginPath();
-      outCtx.ellipse(dx + dw / 2, dy + dh / 2, dw / 2, dh / 2, 0, 0, Math.PI * 2);
-      outCtx.clip();
-    } else if (z.shape === 'polygon' && z.points && z.points.length >= 3 && z.src.w > 0 && z.src.h > 0) {
-      outCtx.beginPath();
-      z.points.forEach((p, idx) => {
-        const fx = (p.x - z.src.x) / z.src.w;
-        const fy = (p.y - z.src.y) / z.src.h;
-        const ox = dx + fx * dw, oy = dy + fy * dh;
-        if (idx === 0) outCtx.moveTo(ox, oy); else outCtx.lineTo(ox, oy);
-      });
-      outCtx.closePath();
-      outCtx.clip();
+      // 1. Draw video content (with blur if set) onto the temp canvas
+      ftCtx.save();
+      if (z.blur > 0) ftCtx.filter = `blur(${z.blur}px)`;
+      ftCtx.drawImage(videoEl, z.src.x, z.src.y, z.src.w, z.src.h, dx, dy, dw, dh);
+      ftCtx.restore();
+
+      // 2. Draw the zone shape as a filled white mask with blur → soft edges
+      fmCtx.save();
+      fmCtx.filter = `blur(${z.feather}px)`;
+      fmCtx.fillStyle = 'white';
+      buildZonePath(fmCtx, dx, dy, dw, dh, z);
+      fmCtx.fill();
+      fmCtx.restore();
+
+      // 3. Apply soft mask: keep only content where mask is opaque (destination-in)
+      ftCtx.globalCompositeOperation = 'destination-in';
+      ftCtx.drawImage(_fmCanvas, 0, 0);
+      ftCtx.globalCompositeOperation = 'source-over';
+
+      // 4. Composite the feathered zone onto the output canvas
+      outCtx.save();
+      if (probeOpacity < 1) outCtx.globalAlpha = probeOpacity;
+      outCtx.drawImage(_ftCanvas, 0, 0);
+      outCtx.restore();
+    } else {
+      // ── Hard-edge rendering (original path) ──────────────────────────────
+      outCtx.save();
+      if (probeOpacity < 1) outCtx.globalAlpha = probeOpacity;
+      if (z.blur > 0) outCtx.filter = `blur(${z.blur}px)`;
+
+      if (z.shape === 'ellipse') {
+        outCtx.beginPath();
+        outCtx.ellipse(dx + dw / 2, dy + dh / 2, dw / 2, dh / 2, 0, 0, Math.PI * 2);
+        outCtx.clip();
+      } else if (z.shape === 'polygon' && z.points && z.points.length >= 3 && z.src.w > 0 && z.src.h > 0) {
+        outCtx.beginPath();
+        z.points.forEach((p, idx) => {
+          const fx = (p.x - z.src.x) / z.src.w;
+          const fy = (p.y - z.src.y) / z.src.h;
+          const ox = dx + fx * dw, oy = dy + fy * dh;
+          if (idx === 0) outCtx.moveTo(ox, oy); else outCtx.lineTo(ox, oy);
+        });
+        outCtx.closePath();
+        outCtx.clip();
+      }
+
+      outCtx.drawImage(videoEl, z.src.x, z.src.y, z.src.w, z.src.h, dx, dy, dw, dh);
+      outCtx.restore();
     }
-
-    outCtx.drawImage(videoEl, z.src.x, z.src.y, z.src.w, z.src.h, dx, dy, dw, dh);
-    outCtx.restore();
 
     if (showOutputOutlines) {
       outCtx.save();

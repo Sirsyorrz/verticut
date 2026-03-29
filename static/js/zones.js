@@ -85,7 +85,7 @@ function addZone(vx, vy, vw, vh, shape) {
   const label = names[zones.length] || `Zone ${zones.length + 1}`;
   const aspect = vw / vh, dstW = OUT_W, dstH = Math.min(Math.round(OUT_W / aspect), OUT_H);
   const dstY = Math.round((OUT_H - dstH) / 2);
-  zones.push({ id, label, color, disabled: false, blur: 0, arLocked: true,
+  zones.push({ id, label, color, disabled: false, blur: 0, feather: 0, arLocked: true,
     shape: shape || 'rect',
     src: { x: vx, y: vy, w: vw, h: vh },
     dst: { x: 0, y: dstY, w: dstW, h: dstH }
@@ -103,7 +103,7 @@ function addZonePolygon(points) {
   const aspect = bbox.w / bbox.h;
   const dstW = OUT_W, dstH = Math.min(Math.round(OUT_W / aspect), OUT_H);
   const dstY = Math.round((OUT_H - dstH) / 2);
-  zones.push({ id, label, color, disabled: false, blur: 0, arLocked: false,
+  zones.push({ id, label, color, disabled: false, blur: 0, feather: 0, arLocked: false,
     shape: 'polygon',
     points: points.map(p => ({ x: p.x, y: p.y })),
     src: { x: bbox.x, y: bbox.y, w: bbox.w, h: bbox.h },
@@ -142,6 +142,13 @@ function setZoneBlur(id, val) {
   const z = zones.find(z => z.id === id); if (!z) return;
   z.blur = val;
   const lbl = document.getElementById(`blur-val-${id}`);
+  if (lbl) lbl.textContent = val > 0 ? val + 'px' : 'off';
+}
+
+function setZoneFeather(id, val) {
+  const z = zones.find(z => z.id === id); if (!z) return;
+  z.feather = val;
+  const lbl = document.getElementById(`feather-val-${id}`);
   if (lbl) lbl.textContent = val > 0 ? val + 'px' : 'off';
 }
 
@@ -372,6 +379,14 @@ function renderZonesList() {
           value="${z.blur || 0}"
           onmousedown="pushUndo()" oninput="setZoneBlur('${z.id}',+this.value)" onclick="event.stopPropagation()">
         <span class="scale-pct" id="blur-val-${z.id}" style="color:#a78bfa">${z.blur > 0 ? (z.blur + 'px') : 'off'}</span>
+      </div>
+      <div class="scale-row" style="margin-top:3px">
+        <span class="ci-label" style="color:#fb923c">FEATHER</span>
+        <input type="range" class="scale-slider feather-s" id="feather-${z.id}" min="0" max="80" step="1"
+          value="${z.feather || 0}"
+          onmousedown="pushUndo()" oninput="setZoneFeather('${z.id}',+this.value)" onclick="event.stopPropagation()"
+          title="Feather — softens the edge of the mask by blending with the background">
+        <span class="scale-pct" id="feather-val-${z.id}" style="color:#fb923c">${(z.feather || 0) > 0 ? ((z.feather || 0) + 'px') : 'off'}</span>
       </div>
       <div class="zone-actions" style="margin-top:3px;border-top:1px solid var(--border);padding-top:4px">
         <button class="zone-action-btn probe-set-btn" id="probe-btn-${z.id}" onclick="event.stopPropagation();startSetProbe('${z.id}')" title="Alt+Click source canvas to add probe point">⊙ add probe</button>

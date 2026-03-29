@@ -19,7 +19,7 @@ function confirmSavePreset() {
   closePresetModal();
   const preset = { id: Date.now().toString(), name, createdAt: Date.now(),
     zones: zones.map(z => ({
-      label: z.label, color: z.color, blur: z.blur || 0,
+      label: z.label, color: z.color, blur: z.blur || 0, feather: z.feather || 0,
       shape: z.shape || 'rect',
       hudProbes: z.hudProbes ? z.hudProbes.map(p => ({...p})) : undefined,
       srcPct: { x: z.src.x / videoInfo.width, y: z.src.y / videoInfo.height, w: z.src.w / videoInfo.width, h: z.src.h / videoInfo.height },
@@ -39,7 +39,7 @@ function applyPreset(preset) {
   zones = preset.zones.map(pz => {
     const z = {
       id: Date.now().toString() + Math.random().toString(36).slice(2),
-      label: pz.label, color: pz.color, disabled: false, blur: pz.blur || 0,
+      label: pz.label, color: pz.color, disabled: false, blur: pz.blur || 0, feather: pz.feather || 0,
       shape: pz.shape || 'rect',
       arLocked: pz.shape === 'polygon' ? false : true,
       src: {
@@ -72,7 +72,7 @@ function updatePreset(id) {
   const list = getPresets();
   const idx = list.findIndex(p => p.id === id); if (idx === -1) return;
   list[idx].zones = zones.map(z => ({
-    label: z.label, color: z.color, blur: z.blur || 0,
+    label: z.label, color: z.color, blur: z.blur || 0, feather: z.feather || 0,
     shape: z.shape || 'rect',
     hudProbes: z.hudProbes ? z.hudProbes.map(p => ({...p})) : undefined,
     srcPct: { x: z.src.x / videoInfo.width, y: z.src.y / videoInfo.height, w: z.src.w / videoInfo.width, h: z.src.h / videoInfo.height },

@@ -36,8 +36,9 @@ function startDrawZone() { toast('Drag on the video to draw a new zone'); }
 
 // ── Source canvas interaction ─────────────────────────────────────────────────
 canvasCont.addEventListener('mousedown', e => {
+  if (e.button === 1) return; // middle-mouse handled by wrap
   const r = canvasCont.getBoundingClientRect();
-  const canvasX = e.clientX - r.left, canvasY = e.clientY - r.top;
+  const canvasX = (e.clientX - r.left) / srcZoom, canvasY = (e.clientY - r.top) / srcZoom;
   const vidX = canvasX / srcScale, vidY = canvasY / srcScale;
   const HP = 14;
 
@@ -100,14 +101,16 @@ canvasCont.addEventListener('mousedown', e => {
 
 canvasCont.addEventListener('mousemove', e => {
   if (!drawing) return;
-  const r = canvasCont.getBoundingClientRect(), cx = e.clientX - r.left, cy = e.clientY - r.top;
+  const r = canvasCont.getBoundingClientRect();
+  const cx = (e.clientX - r.left) / srcZoom, cy = (e.clientY - r.top) / srcZoom;
   const x = Math.min(drawStartX, cx), y = Math.min(drawStartY, cy), w = Math.abs(cx - drawStartX), h = Math.abs(cy - drawStartY);
   drawGuide.style.left = x + 'px'; drawGuide.style.top = y + 'px'; drawGuide.style.width = w + 'px'; drawGuide.style.height = h + 'px';
 });
 
 canvasCont.addEventListener('mouseup', e => {
   if (!drawing) return; drawing = false; drawGuide.style.display = 'none';
-  const r = canvasCont.getBoundingClientRect(), cx = e.clientX - r.left, cy = e.clientY - r.top;
+  const r = canvasCont.getBoundingClientRect();
+  const cx = (e.clientX - r.left) / srcZoom, cy = (e.clientY - r.top) / srcZoom;
   const x = Math.min(drawStartX, cx), y = Math.min(drawStartY, cy), w = Math.abs(cx - drawStartX), h = Math.abs(cy - drawStartY);
   if (w < 15 || h < 15) return;
   addZone(Math.round(x / srcScale), Math.round(y / srcScale), Math.round(w / srcScale), Math.round(h / srcScale));
@@ -115,13 +118,14 @@ canvasCont.addEventListener('mouseup', e => {
 
 // ── Output canvas interaction ─────────────────────────────────────────────────
 outCanvas.addEventListener('mousedown', e => {
+  if (e.button === 1) return; // middle-mouse handled by wrap
   if (panelResizing) return;
   const r = outCanvas.getBoundingClientRect();
-  const mx = (e.clientX - r.left) / outScale, my = (e.clientY - r.top) / outScale;
+  const mx = (e.clientX - r.left) / outZoom / outScale, my = (e.clientY - r.top) / outZoom / outScale;
   const HP = 14;
   for (let i = zones.length - 1; i >= 0; i--) {
     const z = zones[i], { x, y, w, h } = z.dst;
-    const hpOut = HP / outScale;
+    const hpOut = HP / outZoom / outScale;
     const hit = hitHandle(zoneHandlePts(x, y, w, h), mx, my, hpOut);
     if (hit) {
       pushUndo();
@@ -168,10 +172,24 @@ window.addEventListener('mousemove', e => {
     panelResizing.panel.style.width = newW + 'px'; return;
   }
 
+  // Output canvas pan
+  if (outPanning) {
+    outPanX = outPanBaseX + (e.clientX - outPanMx);
+    outPanY = outPanBaseY + (e.clientY - outPanMy);
+    applyOutCanvasTransform(); return;
+  }
+
+  // Source canvas pan
+  if (srcPanning) {
+    srcPanX = srcPanBaseX + (e.clientX - srcPanMx);
+    srcPanY = srcPanBaseY + (e.clientY - srcPanMy);
+    applySrcCanvasTransform(); return;
+  }
+
   // Output canvas drag/resize
   if (outDragging || outResizing) {
     const r = outCanvas.getBoundingClientRect();
-    const mx = (e.clientX - r.left) / outScale, my = (e.clientY - r.top) / outScale;
+    const mx = (e.clientX - r.left) / outZoom / outScale, my = (e.clientY - r.top) / outZoom / outScale;
     if (outDragging && outDragZone) {
       outDragZone.dst.x = Math.round(mx - outDragOffX);
       outDragZone.dst.y = Math.round(my - outDragOffY);
@@ -191,7 +209,7 @@ window.addEventListener('mousemove', e => {
   // Source canvas drag/resize
   if (srcDragging || srcResizing) {
     const r = canvasCont.getBoundingClientRect();
-    const mx = (e.clientX - r.left) / srcScale, my = (e.clientY - r.top) / srcScale;
+    const mx = (e.clientX - r.left) / srcZoom / srcScale, my = (e.clientY - r.top) / srcZoom / srcScale;
     if (srcDragging && srcDragZone) {
       const z = srcDragZone;
       z.src.x = Math.round(mx - srcDragOffX);
@@ -218,7 +236,7 @@ window.addEventListener('mousemove', e => {
   if (videoEl && !drawing) {
     const r = canvasCont.getBoundingClientRect();
     if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
-      const cx = e.clientX - r.left, cy = e.clientY - r.top;
+      const cx = (e.clientX - r.left) / srcZoom, cy = (e.clientY - r.top) / srcZoom;
       const HP = 14;
       let cursor = 'crosshair';
       for (let i = zones.length - 1; i >= 0; i--) {
@@ -242,8 +260,91 @@ window.addEventListener('mouseup', () => {
   tlDragging = null;
   outDragging = false; outDragZone = null; outResizing = false; outResizeZone = null;
   srcDragging = false; srcDragZone = null; srcResizing = false; srcResizeZone = null;
+  srcPanning = false; outPanning = false;
   activeSnapLines = null;
   document.querySelectorAll('.zone-card[draggable]').forEach(c => c.removeAttribute('draggable'));
+});
+
+// ── Canvas zoom & pan ─────────────────────────────────────────────────────────
+function applySrcCanvasTransform() {
+  if (srcZoom === 1) {
+    canvasCont.style.transform = ''; canvasCont.style.transformOrigin = '';
+  } else {
+    canvasCont.style.transformOrigin = '0 0';
+    canvasCont.style.transform = `translate(${srcPanX}px,${srcPanY}px) scale(${srcZoom})`;
+  }
+}
+
+function applyOutCanvasTransform() {
+  if (outZoom === 1) {
+    outCanvas.style.transform = ''; outCanvas.style.transformOrigin = '';
+  } else {
+    outCanvas.style.transformOrigin = '0 0';
+    outCanvas.style.transform = `translate(${outPanX}px,${outPanY}px) scale(${outZoom})`;
+  }
+}
+
+// Scroll wheel zoom — source canvas
+document.getElementById('canvas-wrap').addEventListener('wheel', e => {
+  if (!videoEl) return;
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  const newZoom = Math.min(8, Math.max(1, srcZoom * factor));
+  if (newZoom === srcZoom) return;
+  const r = canvasCont.getBoundingClientRect();
+  const dx = e.clientX - r.left, dy = e.clientY - r.top;
+  srcPanX = srcPanX + dx * (1 - newZoom / srcZoom);
+  srcPanY = srcPanY + dy * (1 - newZoom / srcZoom);
+  srcZoom = newZoom;
+  if (srcZoom <= 1) { srcZoom = 1; srcPanX = 0; srcPanY = 0; }
+  applySrcCanvasTransform();
+}, { passive: false });
+
+// Scroll wheel zoom — output canvas
+document.querySelector('.output-canvas-wrap').addEventListener('wheel', e => {
+  if (!videoEl) return;
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  const newZoom = Math.min(8, Math.max(1, outZoom * factor));
+  if (newZoom === outZoom) return;
+  const r = outCanvas.getBoundingClientRect();
+  const dx = e.clientX - r.left, dy = e.clientY - r.top;
+  outPanX = outPanX + dx * (1 - newZoom / outZoom);
+  outPanY = outPanY + dy * (1 - newZoom / outZoom);
+  outZoom = newZoom;
+  if (outZoom <= 1) { outZoom = 1; outPanX = 0; outPanY = 0; }
+  applyOutCanvasTransform();
+}, { passive: false });
+
+// Middle-mouse pan — source canvas
+document.getElementById('canvas-wrap').addEventListener('mousedown', e => {
+  if (e.button !== 1 || srcZoom <= 1) return;
+  e.preventDefault();
+  srcPanning = true;
+  srcPanMx = e.clientX; srcPanMy = e.clientY;
+  srcPanBaseX = srcPanX; srcPanBaseY = srcPanY;
+});
+
+// Middle-mouse pan — output canvas
+document.querySelector('.output-canvas-wrap').addEventListener('mousedown', e => {
+  if (e.button !== 1 || outZoom <= 1) return;
+  e.preventDefault();
+  outPanning = true;
+  outPanMx = e.clientX; outPanMy = e.clientY;
+  outPanBaseX = outPanX; outPanBaseY = outPanY;
+});
+
+// Double-click to reset zoom
+document.getElementById('canvas-wrap').addEventListener('dblclick', e => {
+  if (srcZoom === 1) return;
+  srcZoom = 1; srcPanX = 0; srcPanY = 0;
+  applySrcCanvasTransform();
+});
+
+document.querySelector('.output-canvas-wrap').addEventListener('dblclick', e => {
+  if (outZoom === 1) return;
+  outZoom = 1; outPanX = 0; outPanY = 0;
+  applyOutCanvasTransform();
 });
 
 // ── Keyboard shortcuts ────────────────────────────────────────────────────────

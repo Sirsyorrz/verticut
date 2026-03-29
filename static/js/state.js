@@ -6,6 +6,10 @@ const SNAP_DIST = 12;
 
 let videoEl = null, videoInfo = {width:1, height:1, duration:0};
 let srcScale = 1, outScale = 1;
+let srcZoom = 1, srcPanX = 0, srcPanY = 0;
+let outZoom = 1, outPanX = 0, outPanY = 0;
+let srcPanning = false, srcPanMx = 0, srcPanMy = 0, srcPanBaseX = 0, srcPanBaseY = 0;
+let outPanning = false, outPanMx = 0, outPanMy = 0, outPanBaseX = 0, outPanBaseY = 0;
 let filename = null, animFrame = null;
 let zones = [], selectedZoneId = null;
 let colorIdx = 0;

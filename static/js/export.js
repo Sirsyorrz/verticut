@@ -20,6 +20,15 @@ async function exportVideo() {
   if (!filename) return toast('Load a video first');
   if (!zones.length) return toast('Draw at least one zone first');
   const expW = getExportW(), expH = getExportH(), expFPS = getExportFPS();
+
+  const saveResult = await window.electronAPI.showSaveDialog({
+    title: 'Save exported video',
+    defaultPath: `verticut_${expW}x${expH}_${expFPS}fps.mp4`,
+    filters: [{ name: 'MP4 Video', extensions: ['mp4'] }]
+  });
+  if (saveResult.canceled || !saveResult.filePath) return;
+  const outputPath = saveResult.filePath;
+
   const scaleX = expW / OUT_W, scaleY = expH / OUT_H;
   const btn = document.getElementById('export-btn'), prog = document.getElementById('progress-wrap');
   const fill = document.getElementById('progress-fill'), pct = document.getElementById('progress-pct');
@@ -31,7 +40,7 @@ async function exportVideo() {
 
   const mutedTrackIdxs = audioTracks.filter(t => t.muted).map(t => t.idx);
   const payload = {
-    filename, output_width: expW, output_height: expH, output_fps: expFPS,
+    filename, output_path: outputPath, output_width: expW, output_height: expH, output_fps: expFPS,
     trim_start: trimStart > 0 ? trimStart : undefined,
     trim_end: trimEnd !== null ? trimEnd : undefined,
     muted_tracks: mutedTrackIdxs,
@@ -63,8 +72,6 @@ async function exportVideo() {
       fill.classList.remove('indeterminate'); fill.style.width = '100%';
       pct.textContent = '100%'; detail.textContent = `Done — ${elapsed}s`;
       timecode.textContent = ''; speedEl.textContent = '';
-      const a = document.createElement('a'); a.href = `${API}${pd.download_url}`; a.download = `verticut_${expW}x${expH}_${expFPS}fps.mp4`;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(() => { resetExportUI(btn, prog); toast('Export complete!'); }, 2500);
     } else if (pd.status === 'error') {
       clearInterval(exportPollTimer); exportPollTimer = null;

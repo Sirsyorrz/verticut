@@ -49,12 +49,18 @@ function refreshZoneCard(z) {
   const card = document.querySelector(`.zone-card[data-zone-id="${z.id}"]`);
   if (!card) return;
   card.classList.toggle('disabled-zone', !!z.disabled);
+  card.classList.toggle('locked-zone', !!z.locked);
   card.classList.toggle('active', selectedZoneId === z.id);
   const toggleBtn = card.querySelector('.zone-toggle-btn');
   if (toggleBtn) {
     toggleBtn.classList.toggle('off', !!z.disabled);
     toggleBtn.innerHTML = z.disabled ? '👁︎ off' : '👁︎ on';
     toggleBtn.title = z.disabled ? 'Enable crop' : 'Disable crop';
+  }
+  const lockBtn = card.querySelector('.zone-lock-btn');
+  if (lockBtn) {
+    lockBtn.classList.toggle('locked', !!z.locked);
+    lockBtn.title = z.locked ? 'Unlock zone' : 'Lock zone';
   }
   refreshSrcInputs(z);
   refreshZoneDst(z);
@@ -71,7 +77,7 @@ function addAutoGameplayZone() {
   const srcX = Math.round((videoInfo.width - cropW) / 2);
   const srcY = Math.round((videoInfo.height - cropH) / 2);
   const id = Date.now().toString(), color = COLORS[colorIdx % COLORS.length]; colorIdx++;
-  zones.push({ id, label: 'Gameplay', color, arLocked: true, shape: 'rect',
+  zones.push({ id, label: 'Gameplay', color, arLocked: true, locked: false, shape: 'rect',
     src: { x: srcX, y: srcY, w: cropW, h: cropH },
     dst: { x: 0, y: 0, w: OUT_W, h: OUT_H }
   });
@@ -85,7 +91,7 @@ function addZone(vx, vy, vw, vh, shape) {
   const label = names[zones.length] || `Zone ${zones.length + 1}`;
   const aspect = vw / vh, dstW = OUT_W, dstH = Math.min(Math.round(OUT_W / aspect), OUT_H);
   const dstY = Math.round((OUT_H - dstH) / 2);
-  zones.push({ id, label, color, disabled: false, blur: 0, feather: 0, arLocked: true,
+  zones.push({ id, label, color, disabled: false, blur: 0, feather: 0, arLocked: true, locked: false,
     shape: shape || 'rect',
     src: { x: vx, y: vy, w: vw, h: vh },
     dst: { x: 0, y: dstY, w: dstW, h: dstH }
@@ -103,7 +109,7 @@ function addZonePolygon(points) {
   const aspect = bbox.w / bbox.h;
   const dstW = OUT_W, dstH = Math.min(Math.round(OUT_W / aspect), OUT_H);
   const dstY = Math.round((OUT_H - dstH) / 2);
-  zones.push({ id, label, color, disabled: false, blur: 0, feather: 0, arLocked: false,
+  zones.push({ id, label, color, disabled: false, blur: 0, feather: 0, arLocked: false, locked: false,
     shape: 'polygon',
     points: points.map(p => ({ x: p.x, y: p.y })),
     src: { x: bbox.x, y: bbox.y, w: bbox.w, h: bbox.h },
@@ -127,6 +133,13 @@ function toggleZoneDisabled(id) {
   const z = zones.find(z => z.id === id);
   if (!z) return;
   z.disabled = !z.disabled;
+  refreshZoneCard(z);
+}
+
+function toggleZoneLocked(id) {
+  const z = zones.find(z => z.id === id);
+  if (!z) return;
+  z.locked = !z.locked;
   refreshZoneCard(z);
 }
 
@@ -205,37 +218,12 @@ function setDstScale(id, pct) {
   refreshZoneDst(z);
 }
 
-function centerSrc(id) {
-  const z = zones.find(z => z.id === id); if (!z) return;
-  pushUndo();
-  z.src.x = Math.max(0, Math.round((videoInfo.width - z.src.w) / 2));
-  z.src.y = Math.max(0, Math.round((videoInfo.height - z.src.h) / 2));
-  refreshSrcInputs(z); toast('SRC crop centered in video frame');
-}
-
 function centerDst(id) {
   const z = zones.find(z => z.id === id); if (!z) return;
   pushUndo();
   z.dst.x = Math.max(0, Math.round((OUT_W - z.dst.w) / 2));
   z.dst.y = Math.max(0, Math.round((OUT_H - z.dst.h) / 2));
   refreshZoneDst(z); toast('DST crop centered in output frame');
-}
-
-function resetZoneDefaults(id) {
-  const z = zones.find(z => z.id === id); if (!z) return;
-  pushUndo();
-  const targetAspect = 9 / 16;
-  let cropW, cropH;
-  if (videoInfo.width / videoInfo.height > targetAspect) {
-    cropH = videoInfo.height; cropW = Math.round(cropH * targetAspect);
-  } else {
-    cropW = videoInfo.width; cropH = Math.round(cropW / targetAspect);
-  }
-  z.src.x = Math.round((videoInfo.width - cropW) / 2);
-  z.src.y = Math.round((videoInfo.height - cropH) / 2);
-  z.src.w = cropW; z.src.h = cropH;
-  z.dst.x = 0; z.dst.y = 0; z.dst.w = OUT_W; z.dst.h = OUT_H;
-  refreshZoneCard(z); toast('Zone reset to centered 9:16 default');
 }
 
 // ── SRC / DST input handlers ──────────────────────────────────────────────────
@@ -334,7 +322,7 @@ function renderZonesList() {
   zones.forEach((z, i) => {
     const card = document.createElement('div');
     const isNew = !_renderedZoneIds.has(z.id);
-    card.className = 'zone-card' + (isNew ? ' zone-new' : '') + (selectedZoneId === z.id ? ' active' : '') + (z.disabled ? ' disabled-zone' : '');
+    card.className = 'zone-card' + (isNew ? ' zone-new' : '') + (selectedZoneId === z.id ? ' active' : '') + (z.disabled ? ' disabled-zone' : '') + (z.locked ? ' locked-zone' : '');
     card.setAttribute('data-zone-id', z.id);
     card.onclick = () => { selectZone(z.id); };
     card.innerHTML = `
@@ -345,6 +333,9 @@ function renderZonesList() {
         ${z.shape && z.shape !== 'rect' ? `<span class="zone-shape-badge">${z.shape}</span>` : ''}
         <button class="zone-toggle-btn${z.disabled ? ' off' : ''}" title="${z.disabled ? 'Enable crop' : 'Disable crop'}" onclick="event.stopPropagation();toggleZoneDisabled('${z.id}')">
           ${z.disabled ? '👁︎ off' : '👁︎ on'}
+        </button>
+        <button class="zone-lock-btn${z.locked ? ' locked' : ''}" title="${z.locked ? 'Unlock zone' : 'Lock zone'}" onclick="event.stopPropagation();toggleZoneLocked('${z.id}')">
+          <svg width="11" height="12" viewBox="0 0 11 12" fill="none" style="display:block"><rect x="1.5" y="5" width="8" height="6.5" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M3.5 5V3.5a2 2 0 0 1 4 0V5" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>
         </button>
         <button class="zone-del" onclick="event.stopPropagation();removeZone('${z.id}')">✕</button>
       </div>
@@ -357,10 +348,6 @@ function renderZonesList() {
           value="${Math.round(z.src.w / videoInfo.width * 100)}"
           onmousedown="pushUndo()" oninput="setSrcScale('${z.id}',+this.value)" onclick="event.stopPropagation()">
         <span class="scale-pct" id="src-scale-val-${z.id}">${Math.round(z.src.w / videoInfo.width * 100)}%</span>
-      </div>
-      <div class="zone-actions">
-        <button class="zone-action-btn" onclick="event.stopPropagation();centerSrc('${z.id}')">&#9635; center src</button>
-        <button class="zone-action-btn" onclick="event.stopPropagation();resetZoneDefaults('${z.id}')" title="Reset to centered 9:16 default">&#8635; reset 9:16</button>
       </div>
       `}
       <div class="scale-row" style="margin-top:2px">

@@ -87,3 +87,20 @@ document.getElementById('preset-modal').addEventListener('click', e => { if (e.t
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 renderPresetsList();
+
+// Load persisted theme
+const _savedTheme = localStorage.getItem('verticut_theme');
+if (_savedTheme === 'light') {
+  document.body.classList.add('light-mode');
+  const _themeCb = document.getElementById('setting-light-mode');
+  if (_themeCb) _themeCb.checked = true;
+}
+// Load persisted snap distance
+const _savedSnap = localStorage.getItem('verticut_snap_dist');
+if (_savedSnap !== null) {
+  SNAP_DIST = parseInt(_savedSnap, 10);
+  const _snapSl = document.getElementById('setting-snap-dist');
+  if (_snapSl) _snapSl.value = SNAP_DIST;
+  const _snapLbl = document.getElementById('snap-dist-val');
+  if (_snapLbl) _snapLbl.textContent = SNAP_DIST + 'px';
+}

@@ -20,12 +20,8 @@ function toggleOutlines() {
   btn.textContent = showOutlines ? '⬡ outlines' : '⬢ outlines';
 }
 
-// ── Mode ──────────────────────────────────────────────────────────────────────
-function setMode(m) {
-  document.getElementById('btn-draw').classList.toggle('active', m === 'draw');
-  document.getElementById('draw-badge').classList.toggle('show', m === 'draw');
-}
-function startDrawZone() { setMode('draw'); toast('Drag on the video to draw a new crop zone'); }
+// ── Draw (always-on — drag empty canvas to create a zone) ─────────────────────
+function startDrawZone() { toast('Drag on the video to draw a new zone'); }
 
 // ── Source canvas interaction ─────────────────────────────────────────────────
 canvasCont.addEventListener('mousedown', e => {
@@ -59,12 +55,9 @@ canvasCont.addEventListener('mousedown', e => {
     }
   }
 
-  if (document.getElementById('btn-draw').classList.contains('active')) {
-    drawStartX = canvasX; drawStartY = canvasY; drawing = true;
-    drawGuide.style.cssText = `display:block;left:${canvasX}px;top:${canvasY}px;width:0;height:0;position:absolute;z-index:10;border:2px dashed var(--accent);background:rgba(0,245,160,0.08);`;
-  } else {
-    selectZone(null);
-  }
+  // No zone hit — start drawing a new zone
+  drawStartX = canvasX; drawStartY = canvasY; drawing = true;
+  drawGuide.style.cssText = `display:block;left:${canvasX}px;top:${canvasY}px;width:0;height:0;position:absolute;z-index:10;border:2px dashed var(--accent);background:rgba(0,245,160,0.08);`;
 });
 
 canvasCont.addEventListener('mousemove', e => {
@@ -189,7 +182,7 @@ window.addEventListener('mousemove', e => {
     if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
       const cx = e.clientX - r.left, cy = e.clientY - r.top;
       const HP = 14;
-      let cursor = document.getElementById('btn-draw').classList.contains('active') ? 'crosshair' : 'default';
+      let cursor = 'crosshair';
       for (let i = zones.length - 1; i >= 0; i--) {
         const z = zones[i];
         const sx = z.src.x * srcScale, sy = z.src.y * srcScale, sw = z.src.w * srcScale, sh = z.src.h * srcScale;
@@ -223,4 +216,16 @@ document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'c') { e.preventDefault(); copyZone(); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'v') { e.preventDefault(); pasteZone(); }
+  if (e.key === 'F1') { e.preventDefault(); toggleHelp(); }
+  if (e.key === 'Escape') { closeHelp(); }
 });
+
+// ── Help modal ────────────────────────────────────────────────────────────────
+function openHelp()  { document.getElementById('help-modal').classList.add('show'); }
+function closeHelp() { document.getElementById('help-modal').classList.remove('show'); }
+function toggleHelp(){ document.getElementById('help-modal').classList.toggle('show'); }
+function switchHelpTab(tab) {
+  document.querySelectorAll('.help-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.help-tab-content').forEach(c => c.classList.toggle('active', c.id === `help-tab-${tab}`));
+}
+document.getElementById('help-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeHelp(); });

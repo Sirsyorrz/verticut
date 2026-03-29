@@ -9,10 +9,14 @@ function setupCanvases() {
   ovCanvas.width = cw; ovCanvas.height = ch;
   ovCanvas.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;';
   canvasCont.style.width = cw + 'px'; canvasCont.style.height = ch + 'px';
+  srcZoom = 1; srcPanX = 0; srcPanY = 0;
+  canvasCont.style.transform = ''; canvasCont.style.transformOrigin = '';
   const ow = document.querySelector('.output-canvas-wrap');
   const owW = ow.clientWidth - 20, owH = ow.clientHeight - 20;
   outScale = Math.min(owW / OUT_W, owH / OUT_H);
   outCanvas.width = Math.floor(OUT_W * outScale); outCanvas.height = Math.floor(OUT_H * outScale);
+  outZoom = 1; outPanX = 0; outPanY = 0;
+  outCanvas.style.transform = ''; outCanvas.style.transformOrigin = '';
 }
 
 function drawOverlay() {

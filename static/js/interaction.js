@@ -27,7 +27,7 @@ function toggleHudProbe() {
   btn.classList.toggle('off', !hudProbeMode);
   btn.textContent = hudProbeMode ? '⊙ HUD probe on' : '⊙ HUD probe';
   // Clear transient visibility flags when disabling
-  if (!hudProbeMode) zones.forEach(z => delete z._hudOpacity);
+  if (!hudProbeMode) zones.forEach(z => { delete z._hudOpacity; });
   toast(hudProbeMode ? 'HUD probe enabled — zones with probe points auto-hide' : 'HUD probe disabled');
 }
 
@@ -53,8 +53,9 @@ canvasCont.addEventListener('mousedown', e => {
     if (settingProbeForZone) {
       const z = zones.find(z => z.id === settingProbeForZone);
       if (z) {
-        z.hudProbe = { x: px, y: py, threshold: 30 };
-        toast(`Probe set at (${px}, ${py}) for "${z.label}"`);
+        if (!z.hudProbes) z.hudProbes = [];
+        z.hudProbes.push({ x: px, y: py, r: pd[0], g: pd[1], b: pd[2], threshold: 60 });
+        toast(`Probe #${z.hudProbes.length} set at (${px}, ${py}) rgb(${pd[0]},${pd[1]},${pd[2]}) for "${z.label}"`);
         renderZonesList();
       }
       settingProbeForZone = null;

@@ -96,43 +96,6 @@
           </div>
         </div>
       </div>
-      <div class="share-section">
-        <div class="share-section-title">Share</div>
-        <input class="share-title-input" id="share-title-input" placeholder="Video title (e.g. My Highlights #Shorts)" />
-        <div class="share-platforms">
-          <div class="share-card">
-            <div class="share-card-header">
-              <span class="share-card-name">▶ YouTube Shorts</span>
-              <span class="share-dot" id="yt-dot"></span>
-              <button class="share-connect-btn" id="yt-connect-btn" onclick="connectPlatform('youtube')">Connect</button>
-            </div>
-            <button class="share-upload-btn yt" id="yt-upload-btn" disabled onclick="uploadTo('youtube')">↑ Upload Short</button>
-            <div class="share-status-text" id="yt-status"></div>
-          </div>
-          <div class="share-card">
-            <div class="share-card-header">
-              <span class="share-card-name">♪ TikTok</span>
-              <span class="share-dot" id="tt-dot"></span>
-              <button class="share-connect-btn" id="tt-connect-btn" onclick="connectPlatform('tiktok')">Connect</button>
-            </div>
-            <button class="share-upload-btn tt" id="tt-upload-btn" disabled onclick="uploadTo('tiktok')">↑ Upload Video</button>
-            <div class="share-status-text" id="tt-status"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div id="creds-modal">
-      <div class="creds-box">
-        <h3 id="creds-title">Connect Platform</h3>
-        <p id="creds-desc">Enter your OAuth credentials.</p>
-        <input class="creds-input" id="creds-id"     placeholder="Client ID" autocomplete="off" />
-        <input class="creds-input" id="creds-secret" placeholder="Client Secret" type="password" autocomplete="off" />
-        <div class="creds-actions">
-          <button class="creds-cancel-btn" onclick="closeCredsModal()">Cancel</button>
-          <button class="creds-save-btn"   onclick="saveCredsAndConnect()">Save & Connect</button>
-        </div>
-      </div>
     </div>
 
     <div class="resize-handle" id="rh2"></div>

@@ -140,8 +140,6 @@ header {
 .scale-slider.blur-s::-webkit-slider-thumb { -webkit-appearance: none; width: 11px; height: 11px; background: #a78bfa; border-radius: 50%; cursor: pointer; }
 .scale-pct { font-size: 0.59rem; font-family: var(--font-mono); color: var(--text-dim); min-width: 36px; text-align: right; }
 
-.add-zone-btn { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0 10px 6px; padding: 7px; background: transparent; border: 1px dashed var(--border); border-radius: var(--radius); color: var(--text-dim); font-family: var(--font-main); font-size: 0.78rem; cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
-.add-zone-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,245,160,0.04); }
 
 .presets-section { border-top: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; max-height: 42%; }
 .presets-scroll { overflow-y: auto; flex: 1; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
@@ -309,3 +307,59 @@ kbd { display: inline-block; padding: 1px 6px; background: var(--bg); border: 1p
 
 /* Polygon zone hint in card */
 .zone-poly-hint { font-size:0.6rem; font-family:var(--font-mono); color:var(--text-dim); padding:4px 6px 2px; line-height:1.5; }
+
+/* ── Lock button ────────────────────────────────────────────────────── */
+.zone-lock-btn { background: none; border: 1px solid var(--border); color: var(--text-dim); cursor: pointer; padding: 0; border-radius: 4px; transition: all 0.15s; display: flex; align-items: center; justify-content: center; width: 22px; height: 20px; flex-shrink: 0; }
+.zone-lock-btn:hover { border-color: var(--accent3); color: var(--accent3); }
+.zone-lock-btn.locked { border-color: var(--accent3); color: var(--accent3); background: rgba(255,209,102,0.12); }
+
+/* Locked zone — dim all content below the header */
+.zone-card.locked-zone { border-color: rgba(255,209,102,0.3); }
+.zone-card.locked-zone .zone-header ~ * { pointer-events: none; opacity: 0.4; }
+.zone-card.locked-zone .zone-header .zone-name { pointer-events: none; }
+
+/* ── Presets panel — game sections ──────────────────────────────────── */
+.game-add-row { display: flex; align-items: center; gap: 4px; padding: 0 0 6px; }
+.add-game-btn { flex: 1; background: transparent; border: 1px dashed var(--border); border-radius: var(--radius); color: var(--text-dim); font-family: var(--font-mono); font-size: 0.65rem; padding: 5px 0; cursor: pointer; transition: all 0.2s; }
+.add-game-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,245,160,0.04); }
+.game-section { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 5px; overflow: hidden; animation: slideIn 0.2s ease; }
+.game-section-header { display: flex; align-items: center; gap: 5px; padding: 6px 8px; background: var(--surface3); cursor: pointer; user-select: none; transition: background 0.15s; }
+.game-section-header:hover { background: rgba(42,42,68,0.9); }
+.game-collapse-arrow { font-size: 0.5rem; color: var(--text-dim); flex-shrink: 0; width: 8px; }
+.game-name-label { flex: 1; font-size: 0.72rem; font-weight: 600; font-family: var(--font-mono); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.game-preset-count { font-size: 0.58rem; font-family: var(--font-mono); color: var(--text-dim); background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 1px 6px; flex-shrink: 0; }
+.game-action-btn { background: none; border: 1px solid var(--border); border-radius: 3px; color: var(--text-dim); font-size: 0.62rem; font-family: var(--font-mono); padding: 1px 6px; cursor: pointer; transition: all 0.15s; flex-shrink: 0; }
+.game-action-btn:hover { border-color: var(--accent); color: var(--accent); }
+.game-action-btn.del:hover { border-color: var(--accent2); color: var(--accent2); }
+.game-presets-list { padding: 6px 8px; display: flex; flex-direction: column; gap: 5px; }
+.game-presets-list.collapsed { display: none; }
+.game-name-input { flex: 1; background: var(--bg); border: 1px solid var(--accent); border-radius: 3px; color: var(--accent); font-family: var(--font-mono); font-size: 0.72rem; padding: 1px 6px; outline: none; min-width: 0; }
+#preset-game-select { padding: 5px 8px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-family: var(--font-mono); font-size: 0.75rem; outline: none; }
+#preset-game-select:focus { border-color: var(--accent); }
+
+/* ── Settings panel ──────────────────────────────────────────────────── */
+.settings-group { display: flex; flex-direction: column; gap: 6px; padding: 4px 0; }
+.settings-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; background: var(--surface2); border-radius: var(--radius); border: 1px solid var(--border); }
+.settings-label { font-size: 0.75rem; font-family: var(--font-mono); color: var(--text); }
+.settings-control-row { display: flex; align-items: center; gap: 8px; }
+.settings-val { font-size: 0.65rem; font-family: var(--font-mono); color: var(--text-dim); min-width: 34px; text-align: right; }
+/* Toggle switch */
+.settings-toggle { position: relative; display: inline-block; width: 34px; height: 19px; cursor: pointer; flex-shrink: 0; }
+.settings-toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-track { position: absolute; inset: 0; background: var(--surface3); border-radius: 19px; transition: background 0.2s; border: 1px solid var(--border); }
+.toggle-track::before { content: ''; position: absolute; width: 13px; height: 13px; left: 2px; top: 2px; background: var(--text-dim); border-radius: 50%; transition: transform 0.2s, background 0.2s; }
+.settings-toggle input:checked + .toggle-track { background: rgba(0,245,160,0.2); border-color: var(--accent); }
+.settings-toggle input:checked + .toggle-track::before { transform: translateX(15px); background: var(--accent); }
+
+/* ── Light mode overrides ─────────────────────────────────────────────── */
+body.light-mode {
+  --bg: #f0f0f6; --surface: #ffffff; --surface2: #e8e8f2; --surface3: #dcdcec;
+  --border: #c8c8de; --text: #18182e; --text-dim: #5858a0;
+}
+body.light-mode::before {
+  background-image: linear-gradient(rgba(0,180,120,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,180,120,0.04) 1px, transparent 1px);
+}
+body.light-mode header { background: rgba(240,240,246,0.92); }
+body.light-mode .canvas-wrap, body.light-mode .output-canvas-wrap { background: #d8d8e8; }
+body.light-mode #toast { background: var(--surface); }

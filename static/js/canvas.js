@@ -110,6 +110,28 @@ function drawOverlay() {
     });
   }
 
+  // ── Lock icons for locked zones ──────────────────────────────────────────────
+  zones.forEach(z => {
+    if (!z.locked) return;
+    const sx = z.src.x * srcScale, sy = z.src.y * srcScale, sw = z.src.w * srcScale;
+    ovCtx.save();
+    ovCtx.globalAlpha = 0.9;
+    // Background pill
+    ovCtx.fillStyle = 'rgba(0,0,0,0.65)';
+    ovCtx.beginPath();
+    ovCtx.roundRect(sx + sw - 20, sy + 2, 17, 17, 3);
+    ovCtx.fill();
+    // Padlock body
+    ovCtx.strokeStyle = '#ffd166';
+    ovCtx.lineWidth = 1.4;
+    ovCtx.strokeRect(sx + sw - 16.5, sy + 9, 8, 7);
+    // Padlock shackle
+    ovCtx.beginPath();
+    ovCtx.arc(sx + sw - 12.5, sy + 9, 3, Math.PI, 0);
+    ovCtx.stroke();
+    ovCtx.restore();
+  });
+
   // ── Pen-in-progress preview ──────────────────────────────────────────────────
   if (currentTool === 'pen' && penPoints.length > 0) {
     const col = COLORS[colorIdx % COLORS.length];

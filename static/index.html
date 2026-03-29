@@ -47,7 +47,7 @@
         <div class="tool-switcher" id="tool-switcher">
           <button class="tool-btn active" id="tool-rect"    onclick="setTool('rect')"    title="Rectangle — drag to draw (R)">&#9645;</button>
           <button class="tool-btn"        id="tool-ellipse" onclick="setTool('ellipse')" title="Ellipse — drag to draw (E)">&#9711;</button>
-          <button class="tool-btn"        id="tool-pen"     onclick="setTool('pen')"     title="Pen — click to place points (P)">&#9676;</button>
+          <button class="tool-btn"        id="tool-pen"     onclick="setTool('pen')"     title="Pen — click to place points (P)"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block"><polygon points="7,1.5 12.5,5 10.5,12 3.5,12 1.5,5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linejoin="round"/><circle cx="7" cy="1.5" r="1.5" fill="currentColor"/><circle cx="12.5" cy="5" r="1.5" fill="currentColor"/><circle cx="10.5" cy="12" r="1.5" fill="currentColor"/><circle cx="3.5" cy="12" r="1.5" fill="currentColor"/><circle cx="1.5" cy="5" r="1.5" fill="currentColor"/></svg></button>
         </div>
         <button class="outline-toggle" id="input-outline-btn" onclick="toggleInputOutlines()" style="display:none">⬡ outlines</button>
       </div>
@@ -115,7 +115,6 @@
           Load a video then draw crop zones.<br><br>Drag zones on either canvas to reposition.
         </div>
       </div>
-      <button class="add-zone-btn" onclick="startDrawZone()">✚ Draw new crop zone</button>
       <div class="presets-section">
         <div class="panel-header"><div class="section-title">Presets</div></div>
         <div class="presets-scroll" id="presets-list"></div>
@@ -132,6 +131,10 @@
 <div id="preset-modal">
   <div class="modal-box">
     <div class="modal-title">Save Preset</div>
+    <div id="preset-game-row" style="display:none;flex-direction:column;gap:4px">
+      <span style="font-size:0.65rem;font-family:var(--font-mono);color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em">Game</span>
+      <select id="preset-game-select" class="modal-input" style="cursor:pointer"></select>
+    </div>
     <input type="text" class="modal-input" id="preset-name-input" placeholder="e.g. FPS Layout, Cam + Gameplay…" maxlength="40">
     <div class="modal-actions">
       <button class="modal-btn" onclick="closePresetModal()">Cancel</button>
@@ -149,6 +152,7 @@
     <div class="help-tabs">
       <button class="help-tab active" data-tab="keys" onclick="switchHelpTab('keys')">Keybinds</button>
       <button class="help-tab" data-tab="guide" onclick="switchHelpTab('guide')">Guide</button>
+      <button class="help-tab" data-tab="settings" onclick="switchHelpTab('settings')">Settings</button>
     </div>
 
     <div class="help-content">
@@ -168,7 +172,7 @@
         </table>
         <div class="help-sub-title">Mouse Controls</div>
         <table class="help-table">
-          <tr><td>Draw crop zone</td><td>Click <strong>✚ Draw new crop zone</strong>, then drag on source canvas</td></tr>
+          <tr><td>Draw crop zone</td><td>Select a tool (R/E/P), then drag on the source canvas</td></tr>
           <tr><td>Move zone</td><td>Drag center of zone on either canvas</td></tr>
           <tr><td>Resize zone</td><td>Drag corner / edge handles</td></tr>
           <tr><td>Reorder zones</td><td>Drag zone cards in panel</td></tr>
@@ -181,7 +185,7 @@
       <div class="help-tab-content" id="help-tab-guide">
         <ol class="help-steps">
           <li><strong>Load a video</strong> — drop a file (MP4, MOV, MKV, AVI) onto the app or click the drop zone to browse.</li>
-          <li><strong>Draw crop zones</strong> — click <em>✚ Draw new crop zone</em> then drag on the source canvas. Create one for gameplay, one for HUD, minimap, facecam, etc.</li>
+          <li><strong>Draw crop zones</strong> — select a tool (R = rect, E = ellipse, P = polygon) then drag on the source canvas. Create one for gameplay, one for HUD, minimap, facecam, etc.</li>
           <li><strong>Position zones on the output</strong> — drag and resize zones on the 9:16 output canvas. Use the coordinate inputs on zone cards for pixel-perfect placement.</li>
           <li><strong>Trim the timeline</strong> — drag the green in/out handles to export only the segment you want.</li>
           <li><strong>Manage audio</strong> — click audio track chips below the timeline to mute/unmute individual tracks (game audio, mic, etc.).</li>
@@ -195,6 +199,40 @@
           <li>Undo supports up to <strong>50 steps</strong> of layout changes.</li>
           <li>Change output resolution and FPS in the header controls.</li>
         </ul>
+      </div>
+
+      <div class="help-tab-content" id="help-tab-settings">
+        <div class="settings-group">
+          <div class="settings-row">
+            <span class="settings-label">Light mode</span>
+            <label class="settings-toggle">
+              <input type="checkbox" id="setting-light-mode" onchange="applyTheme(this.checked)">
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label">Snap distance</span>
+            <div class="settings-control-row">
+              <input type="range" id="setting-snap-dist" min="0" max="40" step="1" value="12"
+                     oninput="applySnapDist(+this.value)">
+              <span class="settings-val" id="snap-dist-val">12px</span>
+            </div>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label">Input outlines</span>
+            <label class="settings-toggle">
+              <input type="checkbox" id="setting-input-outlines" checked onchange="toggleInputOutlines()">
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label">Output outlines</span>
+            <label class="settings-toggle">
+              <input type="checkbox" id="setting-output-outlines" checked onchange="toggleOutputOutlines()">
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+        </div>
       </div>
     </div>
   </div>

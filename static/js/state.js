@@ -2,7 +2,7 @@
 const API = '';
 const OUT_W = 1080, OUT_H = 1920;
 const COLORS = ['#00f5a0','#ff3c6e','#ffd166','#06d6a0','#118ab2','#ef476f','#a8dadc','#f4a261'];
-const SNAP_DIST = 12;
+let SNAP_DIST = 12;
 
 let videoEl = null, videoInfo = {width:1, height:1, duration:0};
 let srcScale = 1, outScale = 1;

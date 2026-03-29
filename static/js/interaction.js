@@ -18,6 +18,8 @@ function toggleInputOutlines() {
   const btn = document.getElementById('input-outline-btn');
   btn.classList.toggle('off', !showInputOutlines);
   btn.textContent = showInputOutlines ? '⬡ outlines' : '⬢ outlines';
+  const cb = document.getElementById('setting-input-outlines');
+  if (cb) cb.checked = showInputOutlines;
 }
 
 function toggleOutputOutlines() {
@@ -25,6 +27,21 @@ function toggleOutputOutlines() {
   const btn = document.getElementById('output-outline-btn');
   btn.classList.toggle('off', !showOutputOutlines);
   btn.textContent = showOutputOutlines ? '⬡ outlines' : '⬢ outlines';
+  const cb = document.getElementById('setting-output-outlines');
+  if (cb) cb.checked = showOutputOutlines;
+}
+
+// ── Settings functions ────────────────────────────────────────────────────────
+function applyTheme(isLight) {
+  document.body.classList.toggle('light-mode', isLight);
+  localStorage.setItem('verticut_theme', isLight ? 'light' : 'dark');
+}
+
+function applySnapDist(val) {
+  SNAP_DIST = +val;
+  localStorage.setItem('verticut_snap_dist', val);
+  const lbl = document.getElementById('snap-dist-val');
+  if (lbl) lbl.textContent = val + 'px';
 }
 
 // ── HUD probe mode toggle ─────────────────────────────────────────────────────
@@ -37,9 +54,6 @@ function toggleHudProbe() {
   if (!hudProbeMode) zones.forEach(z => { delete z._hudOpacity; });
   toast(hudProbeMode ? 'HUD probe enabled — zones with probe points auto-hide' : 'HUD probe disabled');
 }
-
-// ── Draw (always-on — drag empty canvas to create a zone) ─────────────────────
-function startDrawZone() { toast('Drag on the video to draw a new zone'); }
 
 // ── Tool selector ─────────────────────────────────────────────────────────────
 function setTool(name) {
@@ -115,6 +129,7 @@ canvasCont.addEventListener('mousedown', e => {
   // ── Polygon point handles (check before bbox handles) ─────────────────────
   for (let i = zones.length - 1; i >= 0; i--) {
     const z = zones[i];
+    if (z.locked) continue;
     if (z.shape !== 'polygon' || !z.points) continue;
     const PH = 10;
     for (let pi = 0; pi < z.points.length; pi++) {
@@ -132,6 +147,7 @@ canvasCont.addEventListener('mousedown', e => {
   // ── Bbox resize handles for rect / ellipse ────────────────────────────────
   for (let i = zones.length - 1; i >= 0; i--) {
     const z = zones[i];
+    if (z.locked) continue;
     if (z.shape === 'polygon') continue; // polygon points handled above
     const sx = z.src.x * srcScale, sy = z.src.y * srcScale, sw = z.src.w * srcScale, sh = z.src.h * srcScale;
     const hit = hitHandle(zoneHandlePts(sx, sy, sw, sh), canvasX, canvasY, HP);
@@ -156,6 +172,7 @@ canvasCont.addEventListener('mousedown', e => {
       hit = (canvasX >= sx && canvasX <= sx + sw && canvasY >= sy && canvasY <= sy + sh);
     }
     if (hit) {
+      if (z.locked) continue; // locked zones are click-through on source canvas — draw/select beneath them
       pushUndo();
       srcDragging = true; srcDragZone = z;
       if (z.shape === 'polygon') {
@@ -216,7 +233,9 @@ outCanvas.addEventListener('mousedown', e => {
   const mx = (e.clientX - r.left) / outZoom / outScale, my = (e.clientY - r.top) / outZoom / outScale;
   const HP = 14;
   for (let i = zones.length - 1; i >= 0; i--) {
-    const z = zones[i], { x, y, w, h } = z.dst;
+    const z = zones[i];
+    if (z.locked) continue;
+    const { x, y, w, h } = z.dst;
     const hpOut = HP / outZoom / outScale;
     const hit = hitHandle(zoneHandlePts(x, y, w, h), mx, my, hpOut);
     if (hit) {
@@ -230,9 +249,11 @@ outCanvas.addEventListener('mousedown', e => {
   for (let i = zones.length - 1; i >= 0; i--) {
     const z = zones[i], { x, y, w, h } = z.dst;
     if (mx >= x && mx <= x + w && my >= y && my <= y + h) {
+      selectZone(z.id);
+      if (z.locked) return; // select but don't drag
       pushUndo();
       outDragging = true; outDragZone = z; outDragOffX = mx - x; outDragOffY = my - y;
-      selectZone(z.id); return;
+      return;
     }
   }
   selectZone(null);

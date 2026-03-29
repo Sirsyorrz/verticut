@@ -58,6 +58,57 @@ function drawOverlay() {
     }
     ovCtx.globalAlpha = 1;
   });
+
+  // Draw HUD probe points on source overlay
+  zones.forEach(z => {
+    if (!z.hudProbes || !z.hudProbes.length) return;
+    z.hudProbes.forEach((p, pi) => {
+      const px = p.x * srcScale, py = p.y * srcScale;
+      // Color swatch dot
+      ovCtx.beginPath();
+      ovCtx.arc(px, py, 5, 0, Math.PI * 2);
+      ovCtx.fillStyle = `rgb(${p.r},${p.g},${p.b})`;
+      ovCtx.fill();
+      // Zone-colored ring
+      ovCtx.strokeStyle = z.color;
+      ovCtx.lineWidth = hudProbeMode ? 2 : 1;
+      ovCtx.stroke();
+      // Index label
+      ovCtx.font = '8px JetBrains Mono,monospace';
+      ovCtx.fillStyle = z.color;
+      ovCtx.fillText(`${pi + 1}`, px + 7, py + 3);
+    });
+  });
+
+  // Draw selected pixel crosshair & info tooltip
+  if (selectedPixel) {
+    const cx = selectedPixel.x * srcScale, cy = selectedPixel.y * srcScale;
+    ovCtx.save();
+    ovCtx.strokeStyle = '#fff';
+    ovCtx.lineWidth = 1;
+    ovCtx.setLineDash([3, 3]);
+    // Horizontal line
+    ovCtx.beginPath(); ovCtx.moveTo(0, cy); ovCtx.lineTo(ovCanvas.width, cy); ovCtx.stroke();
+    // Vertical line
+    ovCtx.beginPath(); ovCtx.moveTo(cx, 0); ovCtx.lineTo(cx, ovCanvas.height); ovCtx.stroke();
+    ovCtx.setLineDash([]);
+    // Center dot
+    ovCtx.beginPath(); ovCtx.arc(cx, cy, 4, 0, Math.PI * 2);
+    ovCtx.fillStyle = `rgb(${selectedPixel.r},${selectedPixel.g},${selectedPixel.b})`;
+    ovCtx.fill();
+    ovCtx.strokeStyle = '#fff'; ovCtx.lineWidth = 1.5; ovCtx.stroke();
+    // Info tooltip
+    const label = `(${selectedPixel.x}, ${selectedPixel.y}) rgb(${selectedPixel.r},${selectedPixel.g},${selectedPixel.b})`;
+    ovCtx.font = '10px JetBrains Mono,monospace';
+    const tw = ovCtx.measureText(label).width;
+    const tx = Math.min(cx + 10, ovCanvas.width - tw - 8);
+    const ty = cy > 30 ? cy - 12 : cy + 20;
+    ovCtx.fillStyle = 'rgba(0,0,0,0.75)';
+    ovCtx.fillRect(tx - 4, ty - 11, tw + 8, 15);
+    ovCtx.fillStyle = '#fff';
+    ovCtx.fillText(label, tx, ty);
+    ovCtx.restore();
+  }
 }
 
 function drawOutput() {
@@ -74,9 +125,12 @@ function drawOutput() {
 
   zones.forEach((z, i) => {
     if (z.disabled) return;
+    const probeOpacity = (hudProbeMode && z.hudProbes && z.hudProbes.length && z._hudOpacity !== undefined) ? z._hudOpacity : 1;
+    if (probeOpacity <= 0) return;
     const dx = z.dst.x * outScale, dy = z.dst.y * outScale, dw = z.dst.w * outScale, dh = z.dst.h * outScale;
     const isSelected = selectedZoneId === z.id;
     outCtx.save();
+    if (probeOpacity < 1) outCtx.globalAlpha = probeOpacity;
     if (z.blur > 0) outCtx.filter = `blur(${z.blur}px)`;
     outCtx.drawImage(videoEl, z.src.x, z.src.y, z.src.w, z.src.h, dx, dy, dw, dh);
     outCtx.restore();
@@ -122,6 +176,43 @@ function startLoop() {
       srcCtx.drawImage(videoEl, 0, 0, srcCanvas.width, srcCanvas.height);
       if (!isNaN(videoEl.duration)) {
         document.getElementById('time-current').textContent = fmt(videoEl.currentTime);
+      }
+      // HUD probe sampling — color-distance match, OR across probes, smooth fade
+      if (hudProbeMode) {
+        const PROBE_R = 2; // sample (2*R+1)² = 25 pixels
+        const FADE_SPEED = 0.08;
+        zones.forEach(z => {
+          if (!z.hudProbes || !z.hudProbes.length) return;
+          let anyMatch = false;
+          for (const p of z.hudProbes) {
+            const cx = Math.round(p.x * srcScale);
+            const cy = Math.round(p.y * srcScale);
+            const x0 = Math.max(0, cx - PROBE_R);
+            const y0 = Math.max(0, cy - PROBE_R);
+            const sz = PROBE_R * 2 + 1;
+            const x1 = Math.min(srcCanvas.width, x0 + sz);
+            const y1 = Math.min(srcCanvas.height, y0 + sz);
+            const w = x1 - x0, h = y1 - y0;
+            if (w <= 0 || h <= 0) continue;
+            const pd = srcCtx.getImageData(x0, y0, w, h).data;
+            const n = w * h;
+            // Average color of the sampled region
+            let sr = 0, sg = 0, sb = 0;
+            for (let i = 0; i < n; i++) {
+              const off = i * 4;
+              sr += pd[off]; sg += pd[off + 1]; sb += pd[off + 2];
+            }
+            sr /= n; sg /= n; sb /= n;
+            // Euclidean color distance to target
+            const dist = Math.sqrt((sr - p.r) ** 2 + (sg - p.g) ** 2 + (sb - p.b) ** 2);
+            if (dist <= p.threshold) { anyMatch = true; break; }
+          }
+          const target = anyMatch ? 1 : 0;
+          const prev = z._hudOpacity ?? 1;
+          z._hudOpacity = prev + (target - prev) * FADE_SPEED;
+          if (z._hudOpacity > 0.99) z._hudOpacity = 1;
+          if (z._hudOpacity < 0.01) z._hudOpacity = 0;
+        });
       }
     }
     drawOverlay(); drawOutput(); updateTL(); drawAudioViz();

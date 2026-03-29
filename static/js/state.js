@@ -34,6 +34,11 @@ let outResizeStartX, outResizeStartY, outResizeOrigX, outResizeOrigY, outResizeO
 let zoneDragSrcIdx = null;
 let showOutlines = true;
 
+// Pixel selection & HUD probe state
+let selectedPixel = null;   // { x, y, r, g, b, a } in video coordinates
+let hudProbeMode = false;   // toggle for per-frame HUD probe sampling
+let settingProbeForZone = null; // zone id when assigning a probe pixel
+
 // Trim state
 let trimStart = 0, trimEnd = null;
 let tlDragging = null; // 'head' | 'in' | 'out'

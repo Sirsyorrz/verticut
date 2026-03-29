@@ -1,6 +1,33 @@
 // ── Zone management ───────────────────────────────────────────────────────────
 let _renderedZoneIds = new Set();
 
+function zonesAtPixel(vx, vy) {
+  return zones.filter(z => vx >= z.src.x && vx <= z.src.x + z.src.w && vy >= z.src.y && vy <= z.src.y + z.src.h);
+}
+
+function startSetProbe(id) {
+  settingProbeForZone = id;
+  const z = zones.find(z => z.id === id);
+  toast(`Alt+Click on source canvas to set probe pixel for "${z ? z.label : 'zone'}"`);
+}
+
+function removeProbe(id, idx) {
+  const z = zones.find(z => z.id === id);
+  if (!z || !z.hudProbes) return;
+  if (idx !== undefined) {
+    z.hudProbes.splice(idx, 1);
+  } else {
+    z.hudProbes = [];
+  }
+  if (!z.hudProbes.length) { delete z.hudProbes; delete z._hudOpacity; }
+  renderZonesList();
+}
+
+function setProbeThreshold(id, idx, val) {
+  const z = zones.find(z => z.id === id);
+  if (z && z.hudProbes && z.hudProbes[idx]) z.hudProbes[idx].threshold = val;
+}
+
 function selectZone(id) {
   if (selectedZoneId === id) return;
   const oldCard = selectedZoneId ? document.querySelector(`.zone-card[data-zone-id="${selectedZoneId}"]`) : null;
@@ -306,6 +333,20 @@ function renderZonesList() {
           value="${z.blur || 0}"
           onmousedown="pushUndo()" oninput="setZoneBlur('${z.id}',+this.value)" onclick="event.stopPropagation()">
         <span class="scale-pct" id="blur-val-${z.id}" style="color:#a78bfa">${z.blur > 0 ? (z.blur + 'px') : 'off'}</span>
+      </div>
+      <div class="zone-actions" style="margin-top:3px;border-top:1px solid var(--border);padding-top:4px">
+        <button class="zone-action-btn probe-set-btn" id="probe-btn-${z.id}" onclick="event.stopPropagation();startSetProbe('${z.id}')" title="Alt+Click source canvas to add probe point">⊙ add probe</button>
+        ${(z.hudProbes && z.hudProbes.length) ? `<button class="zone-action-btn" onclick="event.stopPropagation();removeProbe('${z.id}')" title="Remove all probes" style="padding:0 4px;min-width:auto">✕ all</button>` : ''}
+      </div>
+      ${(z.hudProbes || []).map((p, pi) => `
+      <div class="zone-actions" style="margin-top:2px;gap:3px;align-items:center">
+        <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgb(${p.r},${p.g},${p.b});flex-shrink:0" title="rgb(${p.r},${p.g},${p.b})"></span>
+        <span style="font-size:.55rem;color:var(--text-dim);font-family:var(--font-mono);flex-shrink:0">(${p.x},${p.y})</span>
+        <input type="range" class="scale-slider" style="flex:1;min-width:30px" min="5" max="200" step="1" value="${p.threshold}"
+          oninput="setProbeThreshold('${z.id}',${pi},+this.value)" onclick="event.stopPropagation()" title="Max color distance — lower = stricter match">
+        <span style="font-size:.55rem;color:var(--text-dim);min-width:16px">${p.threshold}</span>
+        <button class="zone-action-btn" onclick="event.stopPropagation();removeProbe('${z.id}',${pi})" style="padding:0 3px;min-width:auto;font-size:.6rem" title="Remove this probe">✕</button>
+      </div>`).join('')}
       </div>
     `;
 

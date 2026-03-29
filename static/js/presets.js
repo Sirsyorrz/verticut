@@ -13,11 +13,16 @@ function migratePresetsV2toV3() {
   if (getGameGroups() !== null) return;
   let v2 = [];
   try { v2 = JSON.parse(localStorage.getItem(PRESET_KEY_V2) || '[]'); } catch {}
-  storeGameGroups([{
-    id: Date.now().toString(),
-    gameName: 'Default',
-    presets: Array.isArray(v2) ? v2 : []
-  }]);
+  // Only create a group if there are actual v2 presets to migrate
+  if (Array.isArray(v2) && v2.length > 0) {
+    storeGameGroups([{
+      id: Date.now().toString(),
+      gameName: 'Default',
+      presets: v2
+    }]);
+  } else {
+    storeGameGroups([]);
+  }
 }
 
 // ── Zone serialization ────────────────────────────────────────────────────────
@@ -32,54 +37,6 @@ function serializeZones() {
       pointsPct: z.points.map(p => ({ x: p.x / videoInfo.width, y: p.y / videoInfo.height }))
     } : {})
   }));
-}
-
-// ── Modal open / close ────────────────────────────────────────────────────────
-function openSavePreset() {
-  if (!zones.length) return toast('Add at least one zone first');
-  _populateSaveModal(null);
-}
-
-function openSavePresetForGame(gameId) {
-  if (!zones.length) return toast('Add at least one zone first');
-  _populateSaveModal(gameId);
-}
-
-function _populateSaveModal(preferGameId) {
-  const groups = getGameGroups() || [];
-  const select = document.getElementById('preset-game-select');
-  select.innerHTML = groups.map(g =>
-    `<option value="${escHtml(g.id)}"${g.id === preferGameId ? ' selected' : ''}>${escHtml(g.gameName)}</option>`
-  ).join('');
-  const gameRow = document.getElementById('preset-game-row');
-  if (gameRow) gameRow.style.display = groups.length > 1 ? 'flex' : 'none';
-  const allPresets = groups.flatMap(g => g.presets);
-  document.getElementById('preset-name-input').value = `Layout ${allPresets.length + 1}`;
-  document.getElementById('preset-modal').classList.add('show');
-  setTimeout(() => { const inp = document.getElementById('preset-name-input'); inp.select(); inp.focus(); }, 80);
-}
-
-function closePresetModal() { document.getElementById('preset-modal').classList.remove('show'); }
-
-function confirmSavePreset() {
-  const name = document.getElementById('preset-name-input').value.trim();
-  if (!name) return;
-  const groups = getGameGroups() || [];
-  let gameId = document.getElementById('preset-game-select').value;
-  if (!groups.length) {
-    const ng = { id: Date.now().toString(), gameName: 'Default', presets: [] };
-    groups.push(ng); gameId = ng.id;
-  }
-  let group = groups.find(g => g.id === gameId) || groups[0];
-  closePresetModal();
-  const preset = {
-    id: Date.now().toString() + Math.random().toString(36).slice(2),
-    name, createdAt: Date.now(), zones: serializeZones()
-  };
-  group.presets.push(preset);
-  storeGameGroups(groups);
-  renderPresetsList();
-  toast(`"${name}" saved to ${group.gameName}`);
 }
 
 // ── Apply preset ──────────────────────────────────────────────────────────────
@@ -114,7 +71,24 @@ function applyPreset(preset) {
   });
   selectedZoneId = null; colorIdx = zones.length;
   renderZonesList();
+  closePresetsMenu();
   toast(`Applied "${preset.name}" — ${preset.zones.length} zone${preset.zones.length !== 1 ? 's' : ''} loaded`);
+}
+
+function _applyById(gameId, presetId) {
+  const groups = getGameGroups() || [];
+  const g = groups.find(g => g.id === gameId);
+  const p = g && g.presets.find(p => p.id === presetId);
+  if (p) applyPreset(p);
+}
+
+function _applyDefault() {
+  if (!videoEl) return toast('Load a video first, then apply a preset');
+  pushUndo();
+  zones = []; colorIdx = 0;
+  addAutoGameplayZone();
+  closePresetsMenu();
+  toast('Default 9:16 layout applied');
 }
 
 // ── Game CRUD ─────────────────────────────────────────────────────────────────
@@ -123,24 +97,22 @@ function addGame(name) {
   const groups = getGameGroups() || [];
   groups.push({ id: Date.now().toString() + Math.random().toString(36).slice(2), gameName: name.trim(), presets: [] });
   storeGameGroups(groups);
-  renderPresetsList();
+  renderPresetsDropdown();
   toast(`"${name.trim()}" added`);
 }
 
 function renameGame(gameId, newName) {
-  if (!newName || !newName.trim()) return renderPresetsList();
+  if (!newName || !newName.trim()) return renderPresetsDropdown();
   const groups = getGameGroups() || [];
   const g = groups.find(g => g.id === gameId);
-  if (g) { g.gameName = newName.trim(); storeGameGroups(groups); renderPresetsList(); }
+  if (g) { g.gameName = newName.trim(); storeGameGroups(groups); renderPresetsDropdown(); }
 }
 
 function deleteGame(gameId) {
   const groups = getGameGroups() || [];
-  const g = groups.find(g => g.id === gameId);
-  if (!g) return;
-  if (g.presets.length > 0 && !confirm(`Delete "${g.gameName}" and its ${g.presets.length} preset(s)?`)) return;
   storeGameGroups(groups.filter(g => g.id !== gameId));
-  renderPresetsList();
+  _confirmAction = null;
+  renderPresetsDropdown();
   toast('Game deleted');
 }
 
@@ -149,7 +121,8 @@ function deletePreset(gameId, presetId) {
   const groups = getGameGroups() || [];
   const g = groups.find(g => g.id === gameId);
   if (g) { g.presets = g.presets.filter(p => p.id !== presetId); storeGameGroups(groups); }
-  renderPresetsList();
+  _confirmAction = null;
+  renderPresetsDropdown();
   toast('Preset deleted');
 }
 
@@ -163,8 +136,24 @@ function updatePreset(gameId, presetId) {
   p.zones = serializeZones();
   p.updatedAt = Date.now();
   storeGameGroups(groups);
-  renderPresetsList();
+  _confirmAction = null;
+  renderPresetsDropdown();
   toast(`"${p.name}" updated`);
+}
+
+function movePreset(fromGameId, presetId, toGameId) {
+  const groups = getGameGroups() || [];
+  const fromG = groups.find(g => g.id === fromGameId);
+  const toG = groups.find(g => g.id === toGameId);
+  if (!fromG || !toG) return;
+  const pIdx = fromG.presets.findIndex(p => p.id === presetId);
+  if (pIdx === -1) return;
+  const [preset] = fromG.presets.splice(pIdx, 1);
+  toG.presets.push(preset);
+  storeGameGroups(groups);
+  _moveTarget = null;
+  renderPresetsDropdown();
+  toast(`Moved "${preset.name}" to "${toG.gameName}"`);
 }
 
 // ── Export / Import ───────────────────────────────────────────────────────────
@@ -219,7 +208,6 @@ function importPresets() {
         const groups = getGameGroups() || [];
         const existingIds = new Set(groups.flatMap(g => g.presets.map(p => p.id)));
 
-        // v3 array of game groups
         if (Array.isArray(raw) && raw.length > 0 && raw[0].gameName !== undefined) {
           let addedGames = 0, addedPresets = 0;
           for (const ig of raw) {
@@ -230,10 +218,8 @@ function importPresets() {
               if (!existingIds.has(p.id)) { tg.presets.push(p); addedPresets++; existingIds.add(p.id); }
             }
           }
-          storeGameGroups(groups); renderPresetsList();
+          storeGameGroups(groups); renderPresetsDropdown();
           toast(`Imported ${addedPresets} preset${addedPresets !== 1 ? 's' : ''}${addedGames > 0 ? ` (${addedGames} new game${addedGames !== 1 ? 's' : ''})` : ''}`);
-
-        // v3 single game object
         } else if (!Array.isArray(raw) && raw.gameName !== undefined) {
           let tg = groups.find(g => g.gameName === raw.gameName);
           if (!tg) { tg = { id: Date.now().toString() + Math.random().toString(36).slice(2), gameName: raw.gameName, presets: [] }; groups.push(tg); }
@@ -241,10 +227,8 @@ function importPresets() {
           for (const p of (raw.presets || [])) {
             if (!existingIds.has(p.id)) { tg.presets.push(p); added++; }
           }
-          storeGameGroups(groups); renderPresetsList();
+          storeGameGroups(groups); renderPresetsDropdown();
           toast(`Imported ${added} preset${added !== 1 ? 's' : ''} into "${raw.gameName}"`);
-
-        // v2 flat array or single preset
         } else {
           const imported = Array.isArray(raw) ? raw : [raw];
           for (const p of imported) {
@@ -256,7 +240,7 @@ function importPresets() {
           for (const p of imported) {
             if (!existingIds.has(p.id)) { dg.presets.push(p); added++; }
           }
-          storeGameGroups(groups); renderPresetsList();
+          storeGameGroups(groups); renderPresetsDropdown();
           toast(added > 0 ? `Imported ${added} preset${added !== 1 ? 's' : ''} into "Default"` : 'All presets already exist');
         }
       } catch(e) { toast('Invalid preset file: ' + e.message); }
@@ -266,125 +250,310 @@ function importPresets() {
   input.click();
 }
 
-// ── Inline game rename ────────────────────────────────────────────────────────
-function startRenameGame(gameId, el) {
+// ── Save preset modal ─────────────────────────────────────────────────────────
+function openSavePreset() {
+  if (!zones.length) return toast('Add at least one zone first');
+  const groups = getGameGroups() || [];
+  if (!groups.length) return toast('Create a game first using the Presets menu');
+  _populateSaveModal(null);
+}
+
+function openSavePresetForGame(gameId) {
+  if (!zones.length) return toast('Add at least one zone first');
+  _populateSaveModal(gameId);
+}
+
+function _populateSaveModal(preferGameId) {
+  const groups = getGameGroups() || [];
+  const select = document.getElementById('preset-game-select');
+  select.innerHTML = groups.map(g =>
+    `<option value="${escHtml(g.id)}"${g.id === preferGameId ? ' selected' : ''}>${escHtml(g.gameName)}</option>`
+  ).join('');
+  const gameRow = document.getElementById('preset-game-row');
+  if (gameRow) gameRow.style.display = groups.length > 1 ? 'flex' : 'none';
+  const allPresets = groups.flatMap(g => g.presets);
+  document.getElementById('preset-name-input').value = `Layout ${allPresets.length + 1}`;
+  document.getElementById('preset-modal').classList.add('show');
+  setTimeout(() => { const inp = document.getElementById('preset-name-input'); inp.select(); inp.focus(); }, 80);
+}
+
+function closePresetModal() { document.getElementById('preset-modal').classList.remove('show'); }
+
+function confirmSavePreset() {
+  const name = document.getElementById('preset-name-input').value.trim();
+  if (!name) return;
+  const groups = getGameGroups() || [];
+  if (!groups.length) { closePresetModal(); return toast('Create a game first using the Presets menu'); }
+  let gameId = document.getElementById('preset-game-select').value;
+  let group = groups.find(g => g.id === gameId) || groups[0];
+  closePresetModal();
+  const preset = {
+    id: Date.now().toString() + Math.random().toString(36).slice(2),
+    name, createdAt: Date.now(), zones: serializeZones()
+  };
+  group.presets.push(preset);
+  storeGameGroups(groups);
+  renderPresetsDropdown();
+  toast(`"${name}" saved to ${group.gameName}`);
+}
+
+// ── Dropdown UI State ─────────────────────────────────────────────────────────
+let _presetsOpen = false;
+let _confirmAction = null;  // { type: 'delete'|'update'|'deleteGame', gameId, presetId }
+let _moveTarget = null;     // { gameId, presetId } — showing "move to" list
+const _collapsedGames = new Set();
+
+function togglePresetsMenu() {
+  _presetsOpen = !_presetsOpen;
+  if (!_presetsOpen) { _confirmAction = null; _moveTarget = null; }
+  renderPresetsDropdown();
+  if (_presetsOpen) {
+    setTimeout(() => document.addEventListener('mousedown', _presetsOutsideClick), 0);
+  }
+}
+
+function closePresetsMenu() {
+  _presetsOpen = false;
+  _confirmAction = null;
+  _moveTarget = null;
+  renderPresetsDropdown();
+  document.removeEventListener('mousedown', _presetsOutsideClick);
+}
+
+function _presetsOutsideClick(e) {
+  const dd = document.getElementById('presets-dropdown');
+  const btn = document.getElementById('presets-menu-btn');
+  if (dd && !dd.contains(e.target) && btn && !btn.contains(e.target)) {
+    closePresetsMenu();
+  }
+}
+
+function toggleGameCollapse(gameId) {
+  if (_collapsedGames.has(gameId)) _collapsedGames.delete(gameId);
+  else _collapsedGames.add(gameId);
+  renderPresetsDropdown();
+}
+
+function _requestConfirm(type, gameId, presetId) {
+  if (_confirmAction && _confirmAction.type === type &&
+      _confirmAction.gameId === gameId && _confirmAction.presetId === presetId) {
+    if (type === 'delete') deletePreset(gameId, presetId);
+    else if (type === 'update') updatePreset(gameId, presetId);
+    else if (type === 'deleteGame') deleteGame(gameId);
+    return;
+  }
+  _confirmAction = { type, gameId, presetId };
+  _moveTarget = null;
+  renderPresetsDropdown();
+}
+
+function _cancelConfirm() {
+  _confirmAction = null;
+  renderPresetsDropdown();
+}
+
+function _toggleMoveMenu(gameId, presetId) {
+  if (_moveTarget && _moveTarget.gameId === gameId && _moveTarget.presetId === presetId) {
+    _moveTarget = null;
+  } else {
+    _moveTarget = { gameId, presetId };
+    _confirmAction = null;
+  }
+  renderPresetsDropdown();
+}
+
+// ── Inline new game input ─────────────────────────────────────────────────────
+function _showNewGameInput() {
+  const row = document.getElementById('pd-new-game-row');
+  if (!row) return;
+  row.innerHTML = `<input class="pd-inline-input" id="pd-new-game-input" placeholder="Game name…" maxlength="30">
+    <button class="pd-sm-btn pd-sm-confirm" onclick="event.stopPropagation();_commitNewGame()">OK</button>
+    <button class="pd-sm-btn" onclick="event.stopPropagation();renderPresetsDropdown()">Cancel</button>`;
+  const inp = document.getElementById('pd-new-game-input');
+  inp.focus();
+  inp.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); _commitNewGame(); }
+    if (e.key === 'Escape') renderPresetsDropdown();
+  };
+  inp.onclick = e => e.stopPropagation();
+}
+
+function _commitNewGame() {
+  const inp = document.getElementById('pd-new-game-input');
+  if (inp && inp.value.trim()) addGame(inp.value.trim());
+  else renderPresetsDropdown();
+}
+
+// ── Inline rename game ────────────────────────────────────────────────────────
+function _inlineRenameGame(gameId, el) {
   const current = el.textContent;
   const inp = document.createElement('input');
-  inp.className = 'game-name-input';
+  inp.className = 'pd-inline-input';
   inp.value = current;
+  inp.style.flex = '1';
   inp.onclick = e => e.stopPropagation();
   inp.onblur = () => renameGame(gameId, inp.value || current);
   inp.onkeydown = e => {
     if (e.key === 'Enter') { e.preventDefault(); renameGame(gameId, inp.value || current); }
-    if (e.key === 'Escape') renderPresetsList();
+    if (e.key === 'Escape') renderPresetsDropdown();
   };
   el.replaceWith(inp);
   inp.focus(); inp.select();
 }
 
-// ── Add game inline UI ────────────────────────────────────────────────────────
-function showAddGameInput(btn) {
-  const row = btn.closest('.game-add-row');
-  if (!row) return;
-  const inp = document.createElement('input');
-  inp.className = 'game-name-input';
-  inp.placeholder = 'Game name…';
-  inp.style.cssText = 'flex:1;margin-right:4px';
-  const ok = document.createElement('button');
-  ok.textContent = '✓'; ok.className = 'game-action-btn'; ok.style.color = 'var(--accent)'; ok.style.borderColor = 'var(--accent)';
-  const cancel = document.createElement('button');
-  cancel.textContent = '✕'; cancel.className = 'game-action-btn';
-  ok.onclick = e => { e.stopPropagation(); inp.value.trim() ? addGame(inp.value) : renderPresetsList(); };
-  cancel.onclick = e => { e.stopPropagation(); renderPresetsList(); };
-  inp.onkeydown = e => {
-    if (e.key === 'Enter') { e.preventDefault(); inp.value.trim() ? addGame(inp.value) : renderPresetsList(); }
-    if (e.key === 'Escape') renderPresetsList();
-  };
-  row.innerHTML = '';
-  row.appendChild(inp); row.appendChild(ok); row.appendChild(cancel);
-  inp.focus();
-}
-
-// ── Collapse state ────────────────────────────────────────────────────────────
-const _collapsedGames = new Set();
-
-function toggleGameCollapse(gameId) {
-  if (_collapsedGames.has(gameId)) _collapsedGames.delete(gameId);
-  else _collapsedGames.add(gameId);
-  renderPresetsList();
-}
-
-// ── Render ────────────────────────────────────────────────────────────────────
-function renderPresetsList() {
-  const list = document.getElementById('presets-list');
-  list.innerHTML = '';
+// ── Render dropdown ───────────────────────────────────────────────────────────
+function renderPresetsDropdown() {
+  const dd = document.getElementById('presets-dropdown');
+  const btn = document.getElementById('presets-menu-btn');
+  if (!dd || !btn) return;
   const groups = getGameGroups() || [];
+  const totalPresets = groups.reduce((s, g) => s + g.presets.length, 0);
 
-  // "New Game" row
-  const addRow = document.createElement('div');
-  addRow.className = 'game-add-row';
-  const addBtn = document.createElement('button');
-  addBtn.className = 'add-game-btn';
-  addBtn.textContent = '＋ New Game';
-  addBtn.onclick = e => { e.stopPropagation(); showAddGameInput(addBtn); };
-  addRow.appendChild(addBtn);
-  list.appendChild(addRow);
+  // Update trigger button badge
+  const countEl = document.getElementById('presets-count');
+  if (countEl) countEl.textContent = totalPresets > 0 ? totalPresets : '';
 
-  groups.forEach((group, gi) => {
-    const isCollapsed = _collapsedGames.has(group.id);
-    const section = document.createElement('div');
-    section.className = 'game-section';
+  if (!_presetsOpen) {
+    dd.classList.remove('open');
+    btn.classList.remove('open');
+    dd.innerHTML = '';
+    return;
+  }
 
-    // Game header
-    const header = document.createElement('div');
-    header.className = 'game-section-header';
-    header.onclick = () => toggleGameCollapse(group.id);
-    header.innerHTML = `
-      <span class="game-collapse-arrow">${isCollapsed ? '▶' : '▼'}</span>
-      <span class="game-name-label" ondblclick="event.stopPropagation();startRenameGame('${group.id}',this)">${escHtml(group.gameName)}</span>
-      <span class="game-preset-count">${group.presets.length}</span>
-      <button class="game-action-btn" title="Save current layout as preset here" onclick="event.stopPropagation();openSavePresetForGame('${group.id}')">＋</button>
-      <button class="game-action-btn" title="Export all presets in this game" onclick="event.stopPropagation();exportGamePresets('${group.id}')">⤓</button>
-      <button class="game-action-btn del" title="Delete game" onclick="event.stopPropagation();deleteGame('${group.id}')">✕</button>
-    `;
-    section.appendChild(header);
+  dd.classList.add('open');
+  btn.classList.add('open');
 
-    // Preset list (collapsible)
-    const presetList = document.createElement('div');
-    presetList.className = 'game-presets-list' + (isCollapsed ? ' collapsed' : '');
+  let html = '';
 
-    // Built-in Default 9:16 only in the first group
-    if (gi === 0) {
-      const defCard = document.createElement('div');
-      defCard.className = 'preset-card';
-      defCard.style.cssText = 'border-color:rgba(0,245,160,0.3);';
-      defCard.innerHTML = `<div class="preset-info"><div class="preset-name">Default 9:16</div><div class="preset-meta" style="color:rgba(0,245,160,0.6)">built-in · full screen crop</div></div><button class="preset-btn apply-btn">Apply</button>`;
-      defCard.querySelector('.apply-btn').addEventListener('click', () => {
-        if (!videoEl) return toast('Load a video first, then apply a preset');
-        pushUndo();
-        zones = []; colorIdx = 0;
-        addAutoGameplayZone();
-        toast('Default 9:16 layout applied');
-      });
-      presetList.appendChild(defCard);
-    }
+  // ── Top actions ──
+  html += '<div class="pd-section pd-top-actions">';
+  html += '<button class="pd-action-btn pd-save-btn" onclick="event.stopPropagation();openSavePreset()">';
+  html += '<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><polygon points="5,0.5 6.4,3.6 9.8,3.9 7.2,6.2 8,9.5 5,7.8 2,9.5 2.8,6.2 0.2,3.9 3.6,3.6"/></svg>';
+  html += ' Save Layout</button>';
+  html += '<div class="pd-action-row">';
+  html += '<button class="pd-action-btn" onclick="event.stopPropagation();exportAllPresets()">Export All</button>';
+  html += '<button class="pd-action-btn" onclick="event.stopPropagation();importPresets()">Import</button>';
+  html += '</div>';
+  html += '</div>';
 
-    group.presets.slice().reverse().forEach(p => {
-      const d = new Date(p.updatedAt || p.createdAt);
-      const card = document.createElement('div');
-      card.className = 'preset-card';
-      card.innerHTML = `<div class="preset-info"><div class="preset-name">${escHtml(p.name)}</div><div class="preset-meta">${d.getMonth() + 1}/${d.getDate()} · ${p.zones.length} zone${p.zones.length !== 1 ? 's' : ''}</div></div><button class="preset-btn apply-btn">Apply</button><button class="preset-btn exp-btn" title="Export this preset">⤓</button><button class="preset-btn upd-btn" title="Overwrite with current layout">↺</button><button class="preset-btn del del-btn">✕</button>`;
-      card.querySelector('.apply-btn').addEventListener('click', () => applyPreset(p));
-      card.querySelector('.exp-btn').addEventListener('click', () => exportPreset(group.id, p.id));
-      card.querySelector('.upd-btn').addEventListener('click', () => updatePreset(group.id, p.id));
-      card.querySelector('.del-btn').addEventListener('click', () => deletePreset(group.id, p.id));
-      presetList.appendChild(card);
+  // ── Default 9:16 (standalone, top-level) ──
+  html += '<div class="pd-default-preset">';
+  html += '<div class="pd-default-info"><span class="pd-default-name">Default 9:16</span><span class="pd-default-meta">full screen · built-in</span></div>';
+  html += '<button class="pd-btn pd-btn-apply" onclick="event.stopPropagation();_applyDefault()">Apply</button>';
+  html += '</div>';
+
+  // ── New game row ──
+  html += '<div class="pd-section pd-new-game-section" id="pd-new-game-row">';
+  html += '<button class="pd-action-btn pd-new-game-btn" onclick="event.stopPropagation();_showNewGameInput()">+ New Game</button>';
+  html += '</div>';
+
+  // ── Game groups ──
+  if (groups.length > 0) {
+    html += '<div class="pd-games-list">';
+    groups.forEach((group, gi) => {
+      const isCollapsed = _collapsedGames.has(group.id);
+      const isConfirmDeleteGame = _confirmAction && _confirmAction.type === 'deleteGame' && _confirmAction.gameId === group.id;
+
+      html += `<div class="pd-game${isCollapsed ? ' collapsed' : ''}">`;
+
+      // Game header row
+      html += `<div class="pd-game-header" onclick="toggleGameCollapse('${group.id}')">`;
+      html += `<span class="pd-arrow">${isCollapsed ? '\u25B8' : '\u25BE'}</span>`;
+      html += `<span class="pd-game-name" ondblclick="event.stopPropagation();_inlineRenameGame('${group.id}',this)" title="Double-click to rename">${escHtml(group.gameName)}</span>`;
+      html += `<span class="pd-badge">${group.presets.length}</span>`;
+      html += `<button class="pd-icon-btn" title="Save layout here" onclick="event.stopPropagation();openSavePresetForGame('${group.id}')">+</button>`;
+      html += `<button class="pd-icon-btn" title="Export game" onclick="event.stopPropagation();exportGamePresets('${group.id}')">`;
+      html += '<svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4.5 1v5M2 4l2.5 2.5L7 4M1 8h7"/></svg></button>';
+
+      if (isConfirmDeleteGame) {
+        html += `<button class="pd-icon-btn pd-confirm-active" onclick="event.stopPropagation();_requestConfirm('deleteGame','${group.id}',null)">Delete?</button>`;
+        html += `<button class="pd-icon-btn" onclick="event.stopPropagation();_cancelConfirm()" title="Cancel">No</button>`;
+      } else {
+        html += `<button class="pd-icon-btn pd-icon-del" title="Delete game" onclick="event.stopPropagation();_requestConfirm('deleteGame','${group.id}',null)">`;
+        html += '<svg width="8" height="8" viewBox="0 0 8 8" stroke="currentColor" stroke-width="1.4" fill="none"><path d="M1 1l6 6M7 1l-6 6"/></svg></button>';
+      }
+      html += '</div>'; // end game header
+
+      // Preset list (collapsible)
+      if (!isCollapsed) {
+        html += '<div class="pd-preset-list">';
+
+        group.presets.slice().reverse().forEach(p => {
+          const d = new Date(p.updatedAt || p.createdAt);
+          const dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+          const isConfirmDel = _confirmAction && _confirmAction.type === 'delete' && _confirmAction.gameId === group.id && _confirmAction.presetId === p.id;
+          const isConfirmUpd = _confirmAction && _confirmAction.type === 'update' && _confirmAction.gameId === group.id && _confirmAction.presetId === p.id;
+          const isMoving = _moveTarget && _moveTarget.gameId === group.id && _moveTarget.presetId === p.id;
+
+          html += `<div class="pd-preset${isMoving ? ' pd-preset-moving' : ''}">`;
+          html += '<div class="pd-preset-row">';
+          html += `<div class="pd-preset-info"><span class="pd-preset-name">${escHtml(p.name)}</span><span class="pd-preset-meta">${dateStr} · ${p.zones.length}z</span></div>`;
+
+          // Action buttons
+          html += `<button class="pd-btn pd-btn-apply" onclick="event.stopPropagation();_applyById('${group.id}','${p.id}')" title="Apply preset">Apply</button>`;
+          html += `<button class="pd-btn" onclick="event.stopPropagation();exportPreset('${group.id}','${p.id}')" title="Export">`;
+          html += '<svg width="8" height="8" viewBox="0 0 9 9" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4.5 1v5M2 4l2.5 2.5L7 4M1 8h7"/></svg></button>';
+
+          // Update button (with confirm)
+          if (isConfirmUpd) {
+            html += `<button class="pd-btn pd-confirm-active" onclick="event.stopPropagation();_requestConfirm('update','${group.id}','${p.id}')">Overwrite?</button>`;
+            html += `<button class="pd-btn" onclick="event.stopPropagation();_cancelConfirm()">No</button>`;
+          } else {
+            html += `<button class="pd-btn" onclick="event.stopPropagation();_requestConfirm('update','${group.id}','${p.id}')" title="Overwrite with current layout">`;
+            html += '<svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1 4a3 3 0 0 1 5.2-2M7 4a3 3 0 0 1-5.2 2"/><path d="M6.5 0.5v2h-2M1.5 7.5v-2h2"/></svg></button>';
+          }
+
+          // Move button (only if multiple games)
+          if (groups.length > 1) {
+            html += `<button class="pd-btn${isMoving ? ' active' : ''}" onclick="event.stopPropagation();_toggleMoveMenu('${group.id}','${p.id}')" title="Move to another game">`;
+            html += '<svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1 4h6M5 1.5L7.5 4 5 6.5"/></svg></button>';
+          }
+
+          // Delete button (with confirm)
+          if (isConfirmDel) {
+            html += `<button class="pd-btn pd-confirm-del" onclick="event.stopPropagation();_requestConfirm('delete','${group.id}','${p.id}')">Delete?</button>`;
+            html += `<button class="pd-btn" onclick="event.stopPropagation();_cancelConfirm()">No</button>`;
+          } else {
+            html += `<button class="pd-btn pd-btn-del" onclick="event.stopPropagation();_requestConfirm('delete','${group.id}','${p.id}')" title="Delete preset">`;
+            html += '<svg width="8" height="8" viewBox="0 0 8 8" stroke="currentColor" stroke-width="1.4" fill="none"><path d="M1 1l6 6M7 1l-6 6"/></svg></button>';
+          }
+
+          html += '</div>'; // end pd-preset-row
+
+          // Move-to sub-panel
+          if (isMoving) {
+            html += '<div class="pd-move-panel">';
+            html += '<span class="pd-move-label">Move to:</span>';
+            groups.filter(g => g.id !== group.id).forEach(tg => {
+              html += `<button class="pd-move-target" onclick="event.stopPropagation();movePreset('${group.id}','${p.id}','${tg.id}')">${escHtml(tg.gameName)}</button>`;
+            });
+            html += '</div>';
+          }
+
+          html += '</div>'; // end pd-preset
+        });
+
+        html += '</div>'; // end pd-preset-list
+      }
+
+      html += '</div>'; // end pd-game
     });
+    html += '</div>'; // end pd-games-list
+  }
 
-    section.appendChild(presetList);
-    list.appendChild(section);
-  });
+  dd.innerHTML = html;
 }
+
+// Alias for compatibility (called from app.js init)
+function renderPresetsList() { renderPresetsDropdown(); }
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 migratePresetsV2toV3();
+
+// One-time cleanup: remove auto-created empty "Default" game group
+(function removeEmptyDefaultGame() {
+  const groups = getGameGroups();
+  if (!groups) return;
+  const filtered = groups.filter(g => !(g.gameName === 'Default' && g.presets.length === 0));
+  if (filtered.length !== groups.length) storeGameGroups(filtered);
+})();

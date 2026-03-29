@@ -116,13 +116,13 @@
         </div>
       </div>
       <div class="presets-section">
-        <div class="panel-header"><div class="section-title">Presets</div></div>
-        <div class="presets-scroll" id="presets-list"></div>
-        <button class="save-preset-btn" onclick="openSavePreset()">★ Save layout as preset</button>
-        <div class="preset-io-row">
-          <button class="preset-io-btn" onclick="exportAllPresets()" title="Export all presets to a JSON file">⤓ Export All</button>
-          <button class="preset-io-btn" onclick="importPresets()" title="Import presets from a JSON file">⤒ Import</button>
-        </div>
+        <div class="presets-dropdown" id="presets-dropdown"></div>
+        <button class="presets-menu-btn" id="presets-menu-btn" onclick="togglePresetsMenu()">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style="flex-shrink:0"><polygon points="5,0.5 6.4,3.6 9.8,3.9 7.2,6.2 8,9.5 5,7.8 2,9.5 2.8,6.2 0.2,3.9 3.6,3.6"/></svg>
+          Presets
+          <span class="presets-count" id="presets-count"></span>
+          <span class="presets-chevron">&#9662;</span>
+        </button>
       </div>
     </div>
   </div>
@@ -189,7 +189,7 @@
           <li><strong>Position zones on the output</strong> — drag and resize zones on the 9:16 output canvas. Use the coordinate inputs on zone cards for pixel-perfect placement.</li>
           <li><strong>Trim the timeline</strong> — drag the green in/out handles to export only the segment you want.</li>
           <li><strong>Manage audio</strong> — click audio track chips below the timeline to mute/unmute individual tracks (game audio, mic, etc.).</li>
-          <li><strong>Save presets</strong> — click <em>★ Save layout as preset</em> to reuse layouts across videos. Use the ↺ button to update existing presets.</li>
+          <li><strong>Save presets</strong> — open the <em>★ Presets</em> dropdown and click <em>Save Layout</em> to reuse layouts across videos. Organize presets by game and move them between games.</li>
           <li><strong>Export</strong> — hit <em>Export 9:16 Video</em>. FFmpeg renders locally and the file downloads automatically.</li>
         </ol>
         <div class="help-sub-title">Tips</div>

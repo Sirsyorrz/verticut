@@ -1,5 +1,5 @@
 // ── Zone management ───────────────────────────────────────────────────────────
-let newZoneId = null;
+let _renderedZoneIds = new Set();
 
 function selectZone(id) {
   if (selectedZoneId === id) return;
@@ -265,7 +265,8 @@ function renderZonesList() {
   }
   zones.forEach((z, i) => {
     const card = document.createElement('div');
-    card.className = 'zone-card' + (selectedZoneId === z.id ? ' active' : '') + (z.disabled ? ' disabled-zone' : '') + (newZoneId === z.id ? ' zone-new' : '');
+    const isNew = !_renderedZoneIds.has(z.id);
+    card.className = 'zone-card' + (isNew ? ' zone-new' : '') + (selectedZoneId === z.id ? ' active' : '') + (z.disabled ? ' disabled-zone' : '');
     card.setAttribute('data-zone-id', z.id);
     card.onclick = () => { selectZone(z.id); };
     card.innerHTML = `
@@ -341,5 +342,5 @@ function renderZonesList() {
 
     list.appendChild(card);
   });
-  newZoneId = null;
+  _renderedZoneIds = new Set(zones.map(z => z.id));
 }

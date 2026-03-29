@@ -32,36 +32,38 @@ function drawOverlay() {
     ovCtx.globalAlpha = 1;
     ovCtx.restore();
   }
-  zones.forEach((z, i) => {
-    const sx = z.src.x * srcScale, sy = z.src.y * srcScale, sw = z.src.w * srcScale, sh = z.src.h * srcScale;
-    const isSelected = selectedZoneId === z.id;
-    const alpha = z.disabled ? 0.35 : 1;
-    ovCtx.globalAlpha = alpha;
+  if (showInputOutlines) {
+    zones.forEach((z, i) => {
+      const sx = z.src.x * srcScale, sy = z.src.y * srcScale, sw = z.src.w * srcScale, sh = z.src.h * srcScale;
+      const isSelected = selectedZoneId === z.id;
+      const alpha = z.disabled ? 0.35 : 1;
+      ovCtx.globalAlpha = alpha;
 
-    ovCtx.fillStyle = z.color + (isSelected ? '22' : '12');
-    ovCtx.fillRect(sx, sy, sw, sh);
+      ovCtx.fillStyle = z.color + (isSelected ? '22' : '12');
+      ovCtx.fillRect(sx, sy, sw, sh);
 
-    ovCtx.strokeStyle = z.color; ovCtx.lineWidth = isSelected ? 2.5 : 1.5;
-    ovCtx.setLineDash(isSelected ? [] : [5, 3]);
-    ovCtx.strokeRect(sx, sy, sw, sh);
-    ovCtx.setLineDash([]);
+      ovCtx.strokeStyle = z.color; ovCtx.lineWidth = isSelected ? 2.5 : 1.5;
+      ovCtx.setLineDash(isSelected ? [] : [5, 3]);
+      ovCtx.strokeRect(sx, sy, sw, sh);
+      ovCtx.setLineDash([]);
 
-    const lbl = `${i + 1} ${z.label}`;
-    ovCtx.font = 'bold 11px JetBrains Mono,monospace';
-    const tw = ovCtx.measureText(lbl).width;
-    ovCtx.fillStyle = z.color; ovCtx.fillRect(sx, sy, tw + 12, 19);
-    ovCtx.fillStyle = '#000'; ovCtx.fillText(lbl, sx + 6, sy + 13);
+      const lbl = `${i + 1} ${z.label}`;
+      ovCtx.font = 'bold 11px JetBrains Mono,monospace';
+      const tw = ovCtx.measureText(lbl).width;
+      ovCtx.fillStyle = z.color; ovCtx.fillRect(sx, sy, tw + 12, 19);
+      ovCtx.fillStyle = '#000'; ovCtx.fillText(lbl, sx + 6, sy + 13);
 
-    drawHandles(ovCtx, zoneHandlePts(sx, sy, sw, sh), z.color, isSelected ? 9 : 7);
+      drawHandles(ovCtx, zoneHandlePts(sx, sy, sw, sh), z.color, isSelected ? 9 : 7);
 
-    if (isSelected) {
-      ovCtx.shadowColor = z.color; ovCtx.shadowBlur = 10;
-      ovCtx.strokeStyle = z.color + '50'; ovCtx.lineWidth = 1;
-      ovCtx.strokeRect(sx - 2, sy - 2, sw + 4, sh + 4);
-      ovCtx.shadowBlur = 0;
-    }
-    ovCtx.globalAlpha = 1;
-  });
+      if (isSelected) {
+        ovCtx.shadowColor = z.color; ovCtx.shadowBlur = 10;
+        ovCtx.strokeStyle = z.color + '50'; ovCtx.lineWidth = 1;
+        ovCtx.strokeRect(sx - 2, sy - 2, sw + 4, sh + 4);
+        ovCtx.shadowBlur = 0;
+      }
+      ovCtx.globalAlpha = 1;
+    });
+  }
 
   // Draw HUD probe points on source overlay
   zones.forEach(z => {
@@ -138,7 +140,7 @@ function drawOutput() {
     if (z.blur > 0) outCtx.filter = `blur(${z.blur}px)`;
     outCtx.drawImage(videoEl, z.src.x, z.src.y, z.src.w, z.src.h, dx, dy, dw, dh);
     outCtx.restore();
-    if (showOutlines) {
+    if (showOutputOutlines) {
       outCtx.strokeStyle = z.color; outCtx.lineWidth = isSelected ? 2 : 1;
       outCtx.setLineDash(isSelected ? [] : [4, 3]);
       outCtx.strokeRect(dx, dy, dw, dh); outCtx.setLineDash([]);

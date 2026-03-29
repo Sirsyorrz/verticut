@@ -13,13 +13,18 @@ function startSetProbe(id) {
 
 function removeProbe(id) {
   const z = zones.find(z => z.id === id);
-  if (z) { delete z.hudProbe; delete z._hudVisible; }
+  if (z) { delete z.hudProbe; delete z._hudOpacity; }
   renderZonesList();
 }
 
 function setProbeThreshold(id, val) {
   const z = zones.find(z => z.id === id);
   if (z && z.hudProbe) z.hudProbe.threshold = val;
+}
+
+function setProbeMaxVariance(id, val) {
+  const z = zones.find(z => z.id === id);
+  if (z && z.hudProbe) z.hudProbe.maxVariance = val;
 }
 
 function selectZone(id) {
@@ -330,10 +335,20 @@ function renderZonesList() {
       </div>
       <div class="zone-actions" style="margin-top:3px;border-top:1px solid var(--border);padding-top:4px">
         <button class="zone-action-btn probe-set-btn" id="probe-btn-${z.id}" onclick="event.stopPropagation();startSetProbe('${z.id}')" title="Alt+Click source canvas to set probe pixel">⊙ set probe</button>
-        ${z.hudProbe ? `<span class="probe-info" style="font-size:.65rem;color:var(--text-dim);font-family:var(--font-mono)">(${z.hudProbe.x},${z.hudProbe.y}) thr:${z.hudProbe.threshold}</span>
+        ${z.hudProbe ? `<span class="probe-info" style="font-size:.65rem;color:var(--text-dim);font-family:var(--font-mono)">(${z.hudProbe.x},${z.hudProbe.y})</span>
         <button class="zone-action-btn" onclick="event.stopPropagation();removeProbe('${z.id}')" title="Remove probe point" style="padding:0 4px;min-width:auto">✕</button>
+      </div>
+      <div class="zone-actions" style="margin-top:2px;gap:3px">
+        <span class="ci-label" style="font-size:.6rem;color:var(--text-dim);min-width:24px">BRI</span>
         <input type="range" class="scale-slider" style="flex:1;min-width:40px" min="1" max="255" step="1" value="${z.hudProbe.threshold}"
-          oninput="setProbeThreshold('${z.id}',+this.value)" onclick="event.stopPropagation()">` : ''}
+          oninput="setProbeThreshold('${z.id}',+this.value)" onclick="event.stopPropagation()" title="Min brightness to consider HUD visible">
+        <span style="font-size:.6rem;color:var(--text-dim);min-width:20px">${z.hudProbe.threshold}</span>
+      </div>
+      <div class="zone-actions" style="margin-top:2px;gap:3px">
+        <span class="ci-label" style="font-size:.6rem;color:var(--text-dim);min-width:24px">VAR</span>
+        <input type="range" class="scale-slider" style="flex:1;min-width:40px" min="10" max="2000" step="10" value="${z.hudProbe.maxVariance ?? 400}"
+          oninput="setProbeMaxVariance('${z.id}',+this.value)" onclick="event.stopPropagation()" title="Max color variance — lower = stricter (rejects gameplay noise)">
+        <span style="font-size:.6rem;color:var(--text-dim);min-width:20px">${z.hudProbe.maxVariance ?? 400}</span>` : ''}
       </div>
     `;
 

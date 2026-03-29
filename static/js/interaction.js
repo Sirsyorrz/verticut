@@ -27,7 +27,7 @@ function toggleHudProbe() {
   btn.classList.toggle('off', !hudProbeMode);
   btn.textContent = hudProbeMode ? '⊙ HUD probe on' : '⊙ HUD probe';
   // Clear transient visibility flags when disabling
-  if (!hudProbeMode) zones.forEach(z => delete z._hudVisible);
+  if (!hudProbeMode) zones.forEach(z => delete z._hudOpacity);
   toast(hudProbeMode ? 'HUD probe enabled — zones with probe points auto-hide' : 'HUD probe disabled');
 }
 

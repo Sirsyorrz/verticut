@@ -29,7 +29,7 @@
     },
     "files": [
       "main.js",
-      "server.js",
+      "server/**",
       "static/**"
     ],
     "asarUnpack": [

@@ -1,6 +1,6 @@
 const { app, BrowserWindow, shell } = require('electron');
 const path = require('path');
-const { startServer } = require('./server');
+const { startServer } = require('./server/index');
 
 const PORT = 47891;
 let mainWindow = null;

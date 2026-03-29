@@ -282,6 +282,7 @@ kbd { display: inline-block; padding: 1px 6px; background: var(--bg); border: 1p
 #preset-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:500; align-items:center; justify-content:center; backdrop-filter:blur(4px); }
 #preset-modal.show { display:flex; }
 .modal-box { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:24px; width:300px; display:flex; flex-direction:column; gap:12px; }
+.modal-box.help-modal-box { width: 460px; max-height: 80vh; }
 .modal-title { font-size:0.9rem; font-weight:700; }
 .modal-input { padding:8px 12px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); color:var(--text); font-family:var(--font-mono); font-size:0.82rem; outline:none; }
 .modal-input:focus { border-color:var(--accent); }

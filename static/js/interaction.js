@@ -290,7 +290,7 @@ window.addEventListener('mousemove', e => {
     }
     if (outResizing && outResizeZone) {
       const z = outResizeZone, dx = mx - outResizeStartX, dy = my - outResizeStartY;
-      const freeResize = !z.arLocked ? true : e.shiftKey;
+      const freeResize = (z.shape === 'polygon') ? false : (!z.arLocked ? true : e.shiftKey);
       const r = applyResize(outResizeOrigX, outResizeOrigY, outResizeOrigW, outResizeOrigH, outResizeHandle, dx, dy, freeResize, 40, 40, OUT_W, OUT_H);
       z.dst.x = r.x; z.dst.y = r.y; z.dst.w = r.w; z.dst.h = r.h;
       refreshZoneDst(z);

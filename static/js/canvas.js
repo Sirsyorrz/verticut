@@ -305,10 +305,7 @@ function drawOutput() {
       outCtx.fillStyle = z.color + 'cc'; outCtx.fillRect(dx + 2, dy + 2, tw + 7, 13);
       outCtx.fillStyle = '#000'; outCtx.fillText(lbl, dx + 5, dy + 12);
 
-      // Polygon zones have no bounding-box resize handles on output canvas
-      if (z.shape !== 'polygon') {
-        drawHandles(outCtx, zoneHandlePts(dx, dy, dw, dh), z.color, isSelected ? 9 : 7);
-      }
+      drawHandles(outCtx, zoneHandlePts(dx, dy, dw, dh), z.color, isSelected ? 9 : 7);
 
       if (isSelected) {
         outCtx.shadowColor = z.color; outCtx.shadowBlur = 8;

@@ -1,6 +1,7 @@
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const { spawn } = require('child_process');
+const crypto = require('crypto');
 const path = require('path');
 const fs   = require('fs');
 
@@ -261,6 +262,210 @@ function registerRoutes(app, uploadsDir, outputsDir) {
     const fp = path.join(outputsDir, req.params.filename);
     if (!fs.existsSync(fp)) return res.status(404).send('Not found');
     res.download(fp);
+  });
+
+  // ── PLATFORM CREDENTIALS & TOKENS ──────────────────────────────────────────
+  const userDataPath = path.dirname(outputsDir);
+  const credsFile = path.join(userDataPath, 'platform_creds.json');
+  let platformCreds  = { youtube: null, tiktok: null };
+  let platformTokens = { youtube: null, tiktok: null };
+  try {
+    const saved = JSON.parse(fs.readFileSync(credsFile, 'utf8'));
+    platformCreds  = saved.creds  || platformCreds;
+    platformTokens = saved.tokens || platformTokens;
+  } catch {}
+  function savePlatformData() {
+    fs.writeFileSync(credsFile, JSON.stringify({ creds: platformCreds, tokens: platformTokens }, null, 2));
+  }
+
+  const oauthStates = new Map();
+  const port = app.get('port') || 3000;
+  const YT_REDIRECT = `http://127.0.0.1:${port}/auth/youtube/callback`;
+  const TT_REDIRECT = `http://127.0.0.1:${port}/auth/tiktok/callback`;
+
+  app.get('/auth/status', (req, res) => {
+    res.json({
+      youtube_configured: !!platformCreds.youtube,
+      youtube_connected:  !!(platformCreds.youtube && platformTokens.youtube),
+      tiktok_configured:  !!platformCreds.tiktok,
+      tiktok_connected:   !!(platformCreds.tiktok  && platformTokens.tiktok),
+    });
+  });
+
+  app.post('/auth/config', (req, res) => {
+    const { platform, client_id, client_secret } = req.body;
+    if (!['youtube','tiktok'].includes(platform)) return res.status(400).json({ error: 'Unknown platform' });
+    platformCreds[platform] = { client_id, client_secret };
+    savePlatformData();
+    res.json({ ok: true });
+  });
+
+  app.delete('/auth/disconnect/:platform', (req, res) => {
+    platformTokens[req.params.platform] = null;
+    savePlatformData();
+    res.json({ ok: true });
+  });
+
+  // ── YouTube OAuth ───────────────────────────────────────────────────────────
+  app.get('/auth/youtube/start', (req, res) => {
+    if (!platformCreds.youtube) return res.status(400).json({ error: 'YouTube credentials not configured' });
+    const state = crypto.randomBytes(16).toString('hex');
+    oauthStates.set(state, Date.now() + 600000);
+    const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+    url.searchParams.set('client_id',     platformCreds.youtube.client_id);
+    url.searchParams.set('redirect_uri',  YT_REDIRECT);
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('scope',         'https://www.googleapis.com/auth/youtube.upload');
+    url.searchParams.set('access_type',   'offline');
+    url.searchParams.set('prompt',        'consent');
+    url.searchParams.set('state',         state);
+    res.json({ url: url.toString() });
+  });
+
+  app.get('/auth/youtube/callback', async (req, res) => {
+    const { code, state, error } = req.query;
+    const dark = 'background:#0a0a0f;font-family:monospace;padding:40px';
+    if (error) return res.send(`<body style="${dark};color:#ff4444"><h2>Auth failed: ${error}</h2></body>`);
+    if (!oauthStates.has(state)) return res.send(`<body style="${dark};color:#ff4444"><h2>Invalid state — try again.</h2></body>`);
+    oauthStates.delete(state);
+    try {
+      const r = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ code, client_id: platformCreds.youtube.client_id,
+          client_secret: platformCreds.youtube.client_secret, redirect_uri: YT_REDIRECT, grant_type: 'authorization_code' })
+      });
+      const t = await r.json();
+      if (t.error) throw new Error(t.error_description || t.error);
+      platformTokens.youtube = { access_token: t.access_token, refresh_token: t.refresh_token, expiry: Date.now() + (t.expires_in||3600)*1000 };
+      savePlatformData();
+      res.send(`<body style="${dark};color:#00f5a0"><h2>✓ YouTube connected!</h2><p>You can close this tab and return to VertiCut.</p></body>`);
+    } catch (e) { res.send(`<body style="${dark};color:#ff4444"><h2>Error: ${e.message}</h2></body>`); }
+  });
+
+  async function getYTToken() {
+    const t = platformTokens.youtube;
+    if (!t) throw new Error('Not connected to YouTube');
+    if (Date.now() < t.expiry - 60000) return t.access_token;
+    const r = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_id: platformCreds.youtube.client_id,
+        client_secret: platformCreds.youtube.client_secret, refresh_token: t.refresh_token, grant_type: 'refresh_token' })
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error_description || d.error);
+    platformTokens.youtube.access_token = d.access_token;
+    platformTokens.youtube.expiry = Date.now() + (d.expires_in||3600)*1000;
+    savePlatformData(); return d.access_token;
+  }
+
+  app.post('/upload/youtube', async (req, res) => {
+    const { filename, title = 'VertiCut Export', description = '#Shorts', privacy = 'public' } = req.body;
+    const fp = path.join(outputsDir, filename);
+    if (!fs.existsSync(fp)) return res.status(404).json({ error: 'File not found' });
+    if (!platformTokens.youtube) return res.status(401).json({ error: 'Not connected to YouTube' });
+    try {
+      const token = await getYTToken();
+      const stat  = fs.statSync(fp);
+      const initR = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json',
+          'X-Upload-Content-Length': String(stat.size), 'X-Upload-Content-Type': 'video/mp4' },
+        body: JSON.stringify({
+          snippet: { title, description, tags: ['shorts','gaming'], categoryId: '20' },
+          status:  { privacyStatus: privacy, selfDeclaredMadeForKids: false }
+        })
+      });
+      if (!initR.ok) return res.status(500).json({ error: `YouTube API ${initR.status}: ${await initR.text()}` });
+      const uploadUrl = initR.headers.get('location');
+      const buf = fs.readFileSync(fp);
+      const upR = await fetch(uploadUrl, {
+        method: 'PUT', headers: { 'Content-Type': 'video/mp4', 'Content-Length': String(stat.size) }, body: buf
+      });
+      const upD = await upR.json();
+      if (!upR.ok || !upD.id) return res.status(500).json({ error: 'Upload failed', details: upD });
+      res.json({ ok: true, video_id: upD.id, url: `https://www.youtube.com/shorts/${upD.id}` });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ── TikTok OAuth ────────────────────────────────────────────────────────────
+  app.get('/auth/tiktok/start', (req, res) => {
+    if (!platformCreds.tiktok) return res.status(400).json({ error: 'TikTok credentials not configured' });
+    const state = crypto.randomBytes(16).toString('hex');
+    oauthStates.set(state, Date.now() + 600000);
+    const url = new URL('https://www.tiktok.com/v2/auth/authorize/');
+    url.searchParams.set('client_key',    platformCreds.tiktok.client_id);
+    url.searchParams.set('redirect_uri',  TT_REDIRECT);
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('scope',         'video.upload,video.publish');
+    url.searchParams.set('state',         state);
+    res.json({ url: url.toString() });
+  });
+
+  app.get('/auth/tiktok/callback', async (req, res) => {
+    const { code, state, error } = req.query;
+    const dark = 'background:#0a0a0f;font-family:monospace;padding:40px';
+    if (error) return res.send(`<body style="${dark};color:#ff4444"><h2>Auth failed: ${error}</h2></body>`);
+    if (!oauthStates.has(state)) return res.send(`<body style="${dark};color:#ff4444"><h2>Invalid state — try again.</h2></body>`);
+    oauthStates.delete(state);
+    try {
+      const r = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Cache-Control': 'no-cache' },
+        body: new URLSearchParams({ client_key: platformCreds.tiktok.client_id,
+          client_secret: platformCreds.tiktok.client_secret, code, grant_type: 'authorization_code', redirect_uri: TT_REDIRECT })
+      });
+      const t = await r.json();
+      const td = t.data || t;
+      if (!td.access_token) throw new Error(t.error?.message || JSON.stringify(t));
+      platformTokens.tiktok = { access_token: td.access_token, refresh_token: td.refresh_token, expiry: Date.now() + (td.expires_in||86400)*1000 };
+      savePlatformData();
+      res.send(`<body style="${dark};color:#00f5a0"><h2>✓ TikTok connected!</h2><p>You can close this tab and return to VertiCut.</p></body>`);
+    } catch (e) { res.send(`<body style="${dark};color:#ff4444"><h2>Error: ${e.message}</h2></body>`); }
+  });
+
+  async function getTTToken() {
+    const t = platformTokens.tiktok;
+    if (!t) throw new Error('Not connected to TikTok');
+    if (Date.now() < t.expiry - 60000) return t.access_token;
+    const r = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_key: platformCreds.tiktok.client_id,
+        client_secret: platformCreds.tiktok.client_secret, grant_type: 'refresh_token', refresh_token: t.refresh_token })
+    });
+    const d = await r.json(); const td = d.data || d;
+    if (!td.access_token) throw new Error('TikTok token refresh failed');
+    platformTokens.tiktok.access_token = td.access_token;
+    platformTokens.tiktok.expiry = Date.now() + (td.expires_in||86400)*1000;
+    savePlatformData(); return td.access_token;
+  }
+
+  app.post('/upload/tiktok', async (req, res) => {
+    const { filename, title = 'VertiCut Export', privacy = 'PUBLIC_TO_EVERYONE' } = req.body;
+    const fp = path.join(outputsDir, filename);
+    if (!fs.existsSync(fp)) return res.status(404).json({ error: 'File not found' });
+    if (!platformTokens.tiktok) return res.status(401).json({ error: 'Not connected to TikTok' });
+    try {
+      const token = await getTTToken();
+      const stat  = fs.statSync(fp);
+      const initR = await fetch('https://open.tiktokapis.com/v2/post/publish/video/init/', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=UTF-8' },
+        body: JSON.stringify({
+          post_info:   { title, privacy_level: privacy, disable_duet: false, disable_comment: false, disable_stitch: false },
+          source_info: { source: 'FILE_UPLOAD', video_size: stat.size, chunk_size: stat.size, total_chunk_count: 1 }
+        })
+      });
+      const initD = await initR.json();
+      if (initD.error && initD.error.code !== 'ok') return res.status(500).json({ error: initD.error.message || initD.error.code });
+      const { publish_id, upload_url } = initD.data;
+      const buf   = fs.readFileSync(fp);
+      const upR   = await fetch(upload_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'video/mp4', 'Content-Range': `bytes 0-${stat.size-1}/${stat.size}`, 'Content-Length': String(stat.size) },
+        body: buf
+      });
+      if (!upR.ok) return res.status(500).json({ error: `TikTok upload HTTP ${upR.status}` });
+      res.json({ ok: true, publish_id, url: 'https://www.tiktok.com/upload' });
+    } catch (e) { res.status(500).json({ error: e.message }); }
   });
 }
 

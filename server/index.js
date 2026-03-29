@@ -16,6 +16,7 @@ function startServer(port, userDataPath) {
     app.use(cors());
     app.use(express.json({ limit: '10mb' }));
     app.use(express.static(path.join(__dirname, '..', 'static')));
+    app.set('port', port);
 
     registerRoutes(app, uploadsDir, outputsDir);
 

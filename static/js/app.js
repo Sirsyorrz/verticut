@@ -5,6 +5,7 @@ function resetToStart() {
   if (videoEl) { videoEl.pause(); videoEl.remove(); videoEl = null; }
   filename = null; videoInfo = { width: 1, height: 1, duration: 0 };
   zones = []; selectedZoneId = null; colorIdx = 0;
+  selectedPixel = null; hudProbeMode = false; settingProbeForZone = null;
   trimStart = 0; trimEnd = null; tlDragging = null;
   undoStack = [];
   audioTracks = [];
@@ -20,6 +21,7 @@ function resetToStart() {
   document.getElementById('file-info-label').textContent = '';
   document.getElementById('header-res').style.display = 'none';
   document.getElementById('outline-toggle-btn').style.display = 'none';
+  document.getElementById('hud-probe-btn').style.display = 'none';
   document.getElementById('new-video-btn').style.display = 'none';
   document.getElementById('play-btn').textContent = '▶';
   document.getElementById('file-input').value = '';
@@ -71,6 +73,7 @@ async function handleFile(file) {
   document.getElementById('editor-area').style.display = 'flex';
   document.getElementById('header-res').style.display = 'flex';
   document.getElementById('outline-toggle-btn').style.display = '';
+  document.getElementById('hud-probe-btn').style.display = '';
   document.getElementById('new-video-btn').style.display = '';
 }
 

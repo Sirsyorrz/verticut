@@ -20,6 +20,17 @@ function toggleOutlines() {
   btn.textContent = showOutlines ? '⬡ outlines' : '⬢ outlines';
 }
 
+// ── HUD probe mode toggle ─────────────────────────────────────────────────────
+function toggleHudProbe() {
+  hudProbeMode = !hudProbeMode;
+  const btn = document.getElementById('hud-probe-btn');
+  btn.classList.toggle('off', !hudProbeMode);
+  btn.textContent = hudProbeMode ? '⊙ HUD probe on' : '⊙ HUD probe';
+  // Clear transient visibility flags when disabling
+  if (!hudProbeMode) zones.forEach(z => { delete z._hudOpacity; });
+  toast(hudProbeMode ? 'HUD probe enabled — zones with probe points auto-hide' : 'HUD probe disabled');
+}
+
 // ── Draw (always-on — drag empty canvas to create a zone) ─────────────────────
 function startDrawZone() { toast('Drag on the video to draw a new zone'); }
 
@@ -29,6 +40,33 @@ canvasCont.addEventListener('mousedown', e => {
   const canvasX = e.clientX - r.left, canvasY = e.clientY - r.top;
   const vidX = canvasX / srcScale, vidY = canvasY / srcScale;
   const HP = 14;
+
+  // Alt+Click: pixel selection / HUD probe assignment
+  if (e.altKey) {
+    e.preventDefault();
+    const px = Math.round(vidX), py = Math.round(vidY);
+    // Read pixel color from source canvas
+    const pd = srcCtx.getImageData(Math.round(canvasX), Math.round(canvasY), 1, 1).data;
+    selectedPixel = { x: px, y: py, r: pd[0], g: pd[1], b: pd[2], a: pd[3] };
+
+    // If we're assigning a probe point for a zone
+    if (settingProbeForZone) {
+      const z = zones.find(z => z.id === settingProbeForZone);
+      if (z) {
+        if (!z.hudProbes) z.hudProbes = [];
+        z.hudProbes.push({ x: px, y: py, r: pd[0], g: pd[1], b: pd[2], threshold: 60 });
+        toast(`Probe #${z.hudProbes.length} set at (${px}, ${py}) rgb(${pd[0]},${pd[1]},${pd[2]}) for "${z.label}"`);
+        renderZonesList();
+      }
+      settingProbeForZone = null;
+      return;
+    }
+
+    // Find zones at this pixel
+    const hits = zonesAtPixel(px, py);
+    if (hits.length) selectZone(hits[hits.length - 1].id);
+    return;
+  }
 
   for (let i = zones.length - 1; i >= 0; i--) {
     const z = zones[i];
@@ -217,7 +255,8 @@ document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'c') { e.preventDefault(); copyZone(); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'v') { e.preventDefault(); pasteZone(); }
   if (e.key === 'F1') { e.preventDefault(); toggleHelp(); }
-  if (e.key === 'Escape') { closeHelp(); }
+  if (e.key === 'Escape') { closeHelp(); selectedPixel = null; settingProbeForZone = null; }
+  if (e.altKey && e.key === 'p') { e.preventDefault(); toggleHudProbe(); }
 });
 
 // ── Help modal ────────────────────────────────────────────────────────────────

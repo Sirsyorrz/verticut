@@ -38,45 +38,36 @@ function registerRoutes(app, outputsDir) {
   });
 
   // ── GET /audio_track/:filename/:idx ────────────────────────────────────────
-  app.get('/audio_track/:filename/:idx', async (req, res) => {
+  app.get('/audio_track/:filename/:idx', (req, res) => {
     const fp  = getFilePath(req.params.filename);
     const idx = parseInt(req.params.idx);
     if (isNaN(idx) || idx < 0) return res.status(400).send('Bad track index');
     if (!fp || !fs.existsSync(fp)) return res.status(404).send('Not found');
 
-    const base      = path.basename(fp, path.extname(fp));
-    const trackFile = `track_${base}_${idx}.mp3`;
-    const trackPath = path.join(outputsDir, trackFile);
-
-    if (!fs.existsSync(trackPath)) {
-      try {
-        await new Promise((resolve, reject) => {
-          const proc = spawn(ffmpegPath, [
-            '-i', fp,
-            '-map', `0:a:${idx}`,
-            '-c:a', 'libmp3lame', '-b:a', '128k',
-            '-y', trackPath
-          ]);
-          proc.stderr.on('data', () => {});
-          proc.on('close', code => code === 0 ? resolve() : reject(new Error(`FFmpeg exit ${code}`)));
-        });
-      } catch (e) {
-        return res.status(500).send(e.message);
-      }
-    }
-    res.sendFile(trackPath);
+    res.setHeader('Content-Type', 'audio/mpeg');
+    const proc = spawn(ffmpegPath, [
+      '-i', fp,
+      '-map', `0:a:${idx}`,
+      '-c:a', 'libmp3lame', '-b:a', '128k',
+      '-f', 'mp3', 'pipe:1'
+    ]);
+    proc.stderr.on('data', () => {});
+    proc.stdout.pipe(res);
+    req.on('close', () => { try { proc.kill(); } catch {} });
   });
 
   // ── POST /process ──────────────────────────────────────────────────────────
   app.post('/process', async (req, res) => {
     const data = req.body;
-    const { filename, zones,
+    const { filename, zones, output_path,
             output_width  = 1080,
             output_height = 1920,
             output_fps    = 60    } = data;
     const trimStart   = data.trim_start    || 0;
     const trimEnd     = data.trim_end      || null;
     const mutedTracks = data.muted_tracks  || [];
+
+    if (!output_path) return res.status(400).json({ error: 'No output path provided' });
 
     const filepath = getFilePath(filename);
     if (!filepath || !fs.existsSync(filepath))
@@ -91,8 +82,7 @@ function registerRoutes(app, outputsDir) {
       : (trimStart > 0 ? info.duration - trimStart : info.duration);
 
     const outId        = uuidv4();
-    const outputFile   = `output_${outId}.mp4`;
-    const outputPath   = path.join(outputsDir, outputFile);
+    const outputPath   = output_path;
     const progressPath = path.join(outputsDir, `progress_${outId}.txt`).replace(/\\/g, '/');
 
     // Validate zones
@@ -198,7 +188,7 @@ function registerRoutes(app, outputsDir) {
     ];
 
     const jobId = uuidv4();
-    setJob(jobId, { status: 'running', progressPath, outputFile, error: null });
+    setJob(jobId, { status: 'running', progressPath, error: null });
 
     const proc = spawn(ffmpegPath, cmd);
     setProc(jobId, proc);
@@ -217,7 +207,7 @@ function registerRoutes(app, outputsDir) {
       try { fs.unlinkSync(progressPath); } catch {}
     });
 
-    res.json({ job_id: jobId, output_file: outputFile });
+    res.json({ job_id: jobId });
   });
 
   // ── GET /progress/:jobId ───────────────────────────────────────────────────
@@ -226,7 +216,7 @@ function registerRoutes(app, outputsDir) {
     if (!job) return res.status(404).json({ error: 'Job not found' });
 
     if (job.status === 'done')
-      return res.json({ status: 'done', output_file: job.outputFile, download_url: `/download/${job.outputFile}` });
+      return res.json({ status: 'done' });
 
     if (job.status === 'error')
       return res.json({ status: 'error', error: job.error });
@@ -247,13 +237,6 @@ function registerRoutes(app, outputsDir) {
     } catch {}
 
     res.json({ status: 'running', out_time_ms: outTimeMs, speed, fps });
-  });
-
-  // ── GET /download/:filename ────────────────────────────────────────────────
-  app.get('/download/:filename', (req, res) => {
-    const fp = path.join(outputsDir, req.params.filename);
-    if (!fs.existsSync(fp)) return res.status(404).send('Not found');
-    res.download(fp);
   });
 
 }

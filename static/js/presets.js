@@ -67,6 +67,63 @@ function updatePreset(id) {
   toast(`"${list[idx].name}" updated`);
 }
 
+// ── Export / Import ───────────────────────────────────────────────────────────
+function exportPresets() {
+  const presets = getPresets();
+  if (!presets.length) return toast('No presets to export');
+  const blob = new Blob([JSON.stringify(presets, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `verticut-presets-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast(`Exported ${presets.length} preset${presets.length !== 1 ? 's' : ''}`);
+}
+
+function importPresets() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.addEventListener('change', () => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const imported = JSON.parse(reader.result);
+        if (!Array.isArray(imported)) throw new Error('not an array');
+        // Validate basic shape
+        for (const p of imported) {
+          if (!p.name || !Array.isArray(p.zones)) throw new Error('invalid preset format');
+        }
+        // Merge: skip duplicates by id, append new ones
+        const existing = getPresets();
+        const existingIds = new Set(existing.map(p => p.id));
+        let added = 0;
+        for (const p of imported) {
+          if (!existingIds.has(p.id)) {
+            existing.push(p);
+            added++;
+          }
+        }
+        storePresets(existing);
+        renderPresetsList();
+        toast(added > 0
+          ? `Imported ${added} new preset${added !== 1 ? 's' : ''}${imported.length - added > 0 ? ` (${imported.length - added} already existed)` : ''}`
+          : `All ${imported.length} preset${imported.length !== 1 ? 's' : ''} already exist`
+        );
+      } catch (e) {
+        toast('Invalid preset file: ' + e.message);
+      }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+}
+
 function renderPresetsList() {
   const list = document.getElementById('presets-list');
   const presets = getPresets(); list.innerHTML = '';

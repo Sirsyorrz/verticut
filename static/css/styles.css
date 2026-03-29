@@ -175,6 +175,42 @@ header {
 .export-btn:hover { opacity: 0.9; }
 .export-btn:disabled { background: var(--surface3); color: var(--text-dim); cursor: not-allowed; }
 
+/* ── Share panel ────────────────────────────────────────────────────────── */
+.share-section { padding: 10px 14px 14px; border-top: 1px solid var(--border); flex-shrink: 0; }
+.share-section-title { font-size: 0.62rem; font-family: var(--font-mono); letter-spacing: 0.1em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 8px; }
+.share-title-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-family: var(--font-mono); font-size: 0.72rem; padding: 5px 8px; margin-bottom: 8px; outline: none; box-sizing: border-box; }
+.share-title-input:focus { border-color: var(--accent); }
+.share-platforms { display: flex; gap: 8px; }
+.share-card { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.share-card-header { display: flex; align-items: center; gap: 5px; }
+.share-card-name { font-size: 0.7rem; font-weight: 600; color: var(--text); flex: 1; }
+.share-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); flex-shrink: 0; transition: all 0.3s; }
+.share-dot.on { background: var(--accent); box-shadow: 0 0 6px rgba(0,245,160,0.5); }
+.share-connect-btn { font-size: 0.6rem; font-family: var(--font-mono); background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--text-dim); padding: 2px 6px; cursor: pointer; transition: all 0.15s; white-space: nowrap; flex-shrink: 0; }
+.share-connect-btn:hover { border-color: var(--accent); color: var(--accent); }
+.share-connect-btn.off { border-color: rgba(255,80,80,0.35); color: rgba(255,80,80,0.65); }
+.share-connect-btn.off:hover { border-color: #ff4444; color: #ff4444; }
+.share-upload-btn { width: 100%; padding: 5px 0; font-size: 0.7rem; font-family: var(--font-mono); border-radius: var(--radius); cursor: pointer; transition: all 0.15s; border: 1px solid; }
+.share-upload-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.share-upload-btn.yt { background: rgba(255,50,50,0.08); border-color: rgba(255,80,80,0.3); color: #ff5555; }
+.share-upload-btn.yt:hover:not(:disabled) { background: rgba(255,50,50,0.18); border-color: #ff4444; }
+.share-upload-btn.tt { background: rgba(0,200,220,0.08); border-color: rgba(0,200,220,0.3); color: #00c8dc; }
+.share-upload-btn.tt:hover:not(:disabled) { background: rgba(0,200,220,0.18); border-color: #00c8dc; }
+.share-status-text { font-size: 0.59rem; font-family: var(--font-mono); color: var(--text-dim); text-align: center; min-height: 13px; }
+/* Credentials modal */
+#creds-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:600; align-items:center; justify-content:center; backdrop-filter:blur(4px); }
+#creds-modal.show { display:flex; }
+.creds-box { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:24px; width:340px; display:flex; flex-direction:column; gap:12px; }
+.creds-box h3 { margin:0; font-size:0.9rem; color:var(--text); }
+.creds-box p { margin:0; font-size:0.7rem; color:var(--text-dim); line-height:1.6; }
+.creds-box a { color:var(--accent); cursor:pointer; }
+.creds-input { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); color:var(--text); font-family:var(--font-mono); font-size:0.72rem; padding:7px 10px; outline:none; width:100%; box-sizing:border-box; }
+.creds-input:focus { border-color:var(--accent); }
+.creds-input::placeholder { color:var(--text-dim); }
+.creds-actions { display:flex; gap:8px; }
+.creds-save-btn { flex:1; background:var(--accent); color:#000; border:none; border-radius:var(--radius); padding:7px 0; font-family:var(--font-mono); font-size:0.75rem; font-weight:700; cursor:pointer; }
+.creds-cancel-btn { background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:var(--radius); padding:7px 12px; font-family:var(--font-mono); font-size:0.75rem; cursor:pointer; }
+
 .progress-wrap { display: none; flex-direction: column; gap: 6px; margin-top: 10px; }
 .progress-wrap.show { display: flex; }
 .progress-bar-track { height: 5px; background: var(--surface3); border-radius: 3px; overflow: hidden; }

@@ -278,58 +278,25 @@ function renderZonesList() {
         </button>
         <button class="zone-del" onclick="event.stopPropagation();removeZone('${z.id}')">✕</button>
       </div>
-      <div class="coord-section">
-        <div class="coord-label" style="color:var(--accent3)">SRC crop</div>
-        <div class="coord-inputs">
-          <span class="ci-label" style="color:var(--accent3)">X</span>
-          <input type="number" class="ci-input" id="srcx-${z.id}" value="${z.src.x}" min="0" onclick="event.stopPropagation()" onchange="setSrc('${z.id}','x',this.value)">
-          <span class="ci-sep">·</span>
-          <span class="ci-label" style="color:var(--accent3)">Y</span>
-          <input type="number" class="ci-input" id="srcy-${z.id}" value="${z.src.y}" min="0" onclick="event.stopPropagation()" onchange="setSrc('${z.id}','y',this.value)">
-        </div>
-        <div class="coord-inputs">
-          <span class="ci-label" style="color:var(--accent3)">W</span>
-          <input type="number" class="ci-input" id="srcw-${z.id}" value="${z.src.w}" min="1" onclick="event.stopPropagation()" onchange="setSrc('${z.id}','w',this.value)">
-          <button class="ar-link-btn ${z.arLocked ? 'locked' : 'unlocked'}" title="${z.arLocked ? 'Aspect ratio locked — click to unlock' : 'Aspect ratio unlocked — click to lock'}" onclick="event.stopPropagation();toggleArLock('${z.id}')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${z.arLocked ? '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>' : '<path d="M16.5 13a5 5 0 0 1-1.46 3.54l-3 3a5 5 0 0 1-7.07-7.07l1.71-1.71"/><path d="M7.5 11a5 5 0 0 1 1.46-3.54l3-3a5 5 0 0 1 7.07 7.07l-1.71 1.71"/><line x1="2" y1="2" x2="22" y2="22"/>'}</svg>
-          </button>
-          <span class="ci-label" style="color:var(--accent3)">H</span>
-          <input type="number" class="ci-input" id="srch-${z.id}" value="${z.src.h}" min="1" onclick="event.stopPropagation()" onchange="setSrc('${z.id}','h',this.value)">
-          <span class="ci-label">px</span>
-        </div>
-      </div>
-      <div class="zone-actions">
-        <button class="zone-action-btn" onclick="event.stopPropagation();centerSrc('${z.id}')">&#9635; center</button>
-        <button class="zone-action-btn" onclick="event.stopPropagation();resetZoneDefaults('${z.id}')" title="Reset to centered 9:16 default">&#8635; reset 9:16</button>
-      </div>
-      <div class="scale-row">
-        <span class="ci-label" style="color:var(--accent3)">SCALE</span>
+      <div class="scale-row" style="margin-top:4px">
+        <span class="ci-label" style="color:var(--accent3)">SRC</span>
         <input type="range" class="scale-slider src-s" id="src-scale-${z.id}" min="10" max="500" step="1"
           value="${Math.round(z.src.w / videoInfo.width * 100)}"
           onmousedown="pushUndo()" oninput="setSrcScale('${z.id}',+this.value)" onclick="event.stopPropagation()">
         <span class="scale-pct" id="src-scale-val-${z.id}">${Math.round(z.src.w / videoInfo.width * 100)}%</span>
       </div>
-      <div class="coord-section" style="margin-top:2px">
-        <div class="coord-label" style="color:var(--accent)">DST &nbsp;<span id="dst-pos-${z.id}" style="color:var(--text-dim);font-weight:400;font-size:.58rem">${z.dst.x}, ${z.dst.y}</span></div>
-        <div class="coord-inputs">
-          <span class="ci-label" style="color:var(--accent)">W</span>
-          <input type="number" class="ci-input" id="dstw-${z.id}" value="${z.dst.w}" min="1" onclick="event.stopPropagation()" onchange="setDst('${z.id}','w',this.value)">
-          <button class="ar-link-btn ${z.arLocked ? 'locked' : 'unlocked'}" title="${z.arLocked ? 'Aspect ratio locked — click to unlock' : 'Aspect ratio unlocked — click to lock'}" onclick="event.stopPropagation();toggleArLock('${z.id}')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${z.arLocked ? '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>' : '<path d="M16.5 13a5 5 0 0 1-1.46 3.54l-3 3a5 5 0 0 1-7.07-7.07l1.71-1.71"/><path d="M7.5 11a5 5 0 0 1 1.46-3.54l3-3a5 5 0 0 1 7.07 7.07l-1.71 1.71"/><line x1="2" y1="2" x2="22" y2="22"/>'}</svg>
-          </button>
-          <span class="ci-label" style="color:var(--accent)">H</span>
-          <input type="number" class="ci-input" id="dsth-${z.id}" value="${z.dst.h}" min="1" onclick="event.stopPropagation()" onchange="setDst('${z.id}','h',this.value)">
-          <span class="ci-label">px</span>
-        </div>
-        <div class="scale-row">
-          <span class="ci-label" style="color:var(--accent)">SCALE</span>
-          <input type="range" class="scale-slider dst-s" id="dst-scale-${z.id}" min="10" max="500" step="1"
-            value="${Math.round(z.dst.w / OUT_W * 100)}"
-            onmousedown="pushUndo()" oninput="setDstScale('${z.id}',+this.value)" onclick="event.stopPropagation()">
-          <span class="scale-pct" id="dst-scale-val-${z.id}">${Math.round(z.dst.w / OUT_W * 100)}%</span>
-        </div>
+      <div class="zone-actions">
+        <button class="zone-action-btn" onclick="event.stopPropagation();centerSrc('${z.id}')">&#9635; center src</button>
+        <button class="zone-action-btn" onclick="event.stopPropagation();resetZoneDefaults('${z.id}')" title="Reset to centered 9:16 default">&#8635; reset 9:16</button>
       </div>
-      <div class="zone-actions" style="margin-top:4px">
+      <div class="scale-row" style="margin-top:2px">
+        <span class="ci-label" style="color:var(--accent)">DST</span>
+        <input type="range" class="scale-slider dst-s" id="dst-scale-${z.id}" min="10" max="500" step="1"
+          value="${Math.round(z.dst.w / OUT_W * 100)}"
+          onmousedown="pushUndo()" oninput="setDstScale('${z.id}',+this.value)" onclick="event.stopPropagation()">
+        <span class="scale-pct" id="dst-scale-val-${z.id}">${Math.round(z.dst.w / OUT_W * 100)}%</span>
+      </div>
+      <div class="zone-actions" style="margin-top:2px">
         <button class="zone-action-btn" onclick="event.stopPropagation();centerDst('${z.id}')">&#9635; center dst</button>
       </div>
       <div class="scale-row" style="margin-top:5px;border-top:1px solid var(--border);padding-top:5px">

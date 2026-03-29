@@ -65,7 +65,10 @@ async function exportVideo() {
       timecode.textContent = ''; speedEl.textContent = '';
       const a = document.createElement('a'); a.href = `${API}${pd.download_url}`; a.download = `verticut_${expW}x${expH}_${expFPS}fps.mp4`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(() => { resetExportUI(btn, prog); toast('Export complete!'); }, 2500);
+      lastExportedFile = pd.output_file;
+      document.getElementById('share-title-input').placeholder = a.download.replace('.mp4','');
+      refreshShareStatus();
+      setTimeout(() => { resetExportUI(btn, prog); toast('Export complete! Ready to share.'); }, 2500);
     } else if (pd.status === 'error') {
       clearInterval(exportPollTimer); exportPollTimer = null;
       resetExportUI(btn, prog); toast('FFmpeg error — check terminal'); console.error(pd.error);

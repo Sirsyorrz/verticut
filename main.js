@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { startServer } = require('./server/index');
 
@@ -16,6 +16,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
       // Allow the renderer to load video served from localhost
       webSecurity: true
     },
@@ -34,6 +35,11 @@ function createWindow() {
 
   mainWindow.on('closed', () => { mainWindow = null; });
 }
+
+ipcMain.handle('show-save-dialog', async (event, opts) => {
+  const result = await dialog.showSaveDialog(mainWindow, opts);
+  return result;
+});
 
 app.whenReady().then(async () => {
   const userDataPath = app.getPath('userData');

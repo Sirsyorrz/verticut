@@ -1,14 +1,13 @@
 const express = require('express');
 const cors    = require('cors');
 const path    = require('path');
-const fs      = require('fs');
+const os      = require('os');
 
 const { registerRoutes } = require('./routes');
 
 function startServer(port, userDataPath) {
   return new Promise((resolve, reject) => {
-    const outputsDir = path.join(userDataPath, 'outputs');
-    fs.mkdirSync(outputsDir, { recursive: true });
+    const outputsDir = os.tmpdir();
 
     const app = express();
     app.use(cors());

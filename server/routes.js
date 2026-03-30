@@ -115,15 +115,51 @@ function registerRoutes(app, outputsDir) {
     filterParts.push(`color=black:s=${output_width}x${output_height}:r=${output_fps}[canvas]`);
 
     for (let i = 0; i < zones.length; i++) {
-      const z  = zones[i];
-      const sx = parseInt(z.src_x) + padL;
-      const sy = parseInt(z.src_y) + padT;
-      const sw = parseInt(z.src_w), sh = parseInt(z.src_h);
-      const dw = parseInt(z.dst_w), dh = parseInt(z.dst_h);
-      const blurSigma = parseFloat(z.blur) || 0;
+      const z         = zones[i];
+      const sx        = parseInt(z.src_x) + padL;
+      const sy        = parseInt(z.src_y) + padT;
+      const sw        = parseInt(z.src_w), sh = parseInt(z.src_h);
+      const dw        = parseInt(z.dst_w), dh = parseInt(z.dst_h);
+      const blurSigma = parseFloat(z.blur)    || 0;
+      const feather   = parseFloat(z.feather) || 0;
+      const shape     = z.shape || 'rect';
+
       const blurFilter = blurSigma > 0 ? `,gblur=sigma=${blurSigma}` : '';
+
+      let maskFilter = '';
+      if (shape !== 'rect' || feather > 0) {
+        let alphaExpr;
+
+        if (shape === 'ellipse') {
+          alphaExpr = `255*lte(pow((X-W/2)/max(1,W/2),2)+pow((Y-H/2)/max(1,H/2),2),1)`;
+        } else if (shape === 'polygon' && z.points && z.points.length >= 3) {
+          const pts = z.points; // normalized 0-1 relative to src bbox
+          const n   = pts.length;
+          const crossings = [];
+          for (let k = 0; k < n; k++) {
+            const j  = (k + 1) % n;
+            const x1 = (pts[k].x * dw).toFixed(2), y1 = (pts[k].y * dh).toFixed(2);
+            const x2 = (pts[j].x * dw).toFixed(2), y2 = (pts[j].y * dh).toFixed(2);
+            crossings.push(
+              `gt(${x1}+(Y-${y1})/(${y2}-${y1})*(${x2}-${x1}),X)*abs(gt(${y1},Y)-gt(${y2},Y))`
+            );
+          }
+          alphaExpr = `255*mod(${crossings.join('+')},2)`;
+        } else {
+          // rect with feather — linear ramp from each edge inward
+          alphaExpr = `clip(min(min(X+1,W-1-X),min(Y+1,H-1-Y))*255/max(1,${feather}),0,255)`;
+        }
+
+        // For ellipse/polygon apply gblur only to the alpha plane (plane 8) for feather
+        const featherGblur = (feather > 0 && shape !== 'rect')
+          ? `,gblur=sigma=${feather}:planes=8`
+          : '';
+
+        maskFilter = `,format=yuva420p,geq=lum='lum(X,Y)':cb='cb(X,Y)':cr='cr(X,Y)':a='${alphaExpr}'${featherGblur}`;
+      }
+
       filterParts.push(
-        `[0:v]${trimFilter}${padFilter}crop=${sw}:${sh}:${sx}:${sy},scale=${dw}:${dh}${blurFilter}[z${i}]`
+        `[0:v]${trimFilter}${padFilter}crop=${sw}:${sh}:${sx}:${sy},scale=${dw}:${dh}${blurFilter}${maskFilter}[z${i}]`
       );
     }
 
@@ -132,7 +168,7 @@ function registerRoutes(app, outputsDir) {
       const dx  = parseInt(zones[i].dst_x);
       const dy  = parseInt(zones[i].dst_y);
       const nxt = i < zones.length - 1 ? `ov${i}` : 'out';
-      filterParts.push(`[${prev}][z${i}]overlay=${dx}:${dy}:shortest=1[${nxt}]`);
+      filterParts.push(`[${prev}][z${i}]overlay=${dx}:${dy}:format=auto:shortest=1[${nxt}]`);
       prev = nxt;
     }
 

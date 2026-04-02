@@ -98,28 +98,49 @@ function registerRoutes(app, outputsDir) {
     if (trimEnd)            trimFilter = `trim=start=${trimStart}:end=${trimEnd},setpts=PTS-STARTPTS,`;
     else if (trimStart > 0) trimFilter = `trim=start=${trimStart},setpts=PTS-STARTPTS,`;
 
-    // Padding for out-of-bounds SRC crops (letterboxing)
-    const vidW = info.width, vidH = info.height;
-    const padL = Math.max(0, -Math.min(...zones.map(z => parseInt(z.src_x))));
-    const padT = Math.max(0, -Math.min(...zones.map(z => parseInt(z.src_y))));
-    const padR = Math.max(0, Math.max(...zones.map(z => parseInt(z.src_x) + parseInt(z.src_w))) - vidW);
-    const padB = Math.max(0, Math.max(...zones.map(z => parseInt(z.src_y) + parseInt(z.src_h))) - vidH);
-    const padW = vidW + padL + padR;
-    const padH = vidH + padT + padB;
-    const padFilter = (padL || padT || padR || padB)
-      ? `pad=${padW}:${padH}:${padL}:${padT},`
-      : '';
-
     // Build filter_complex
+    const vidW = info.width, vidH = info.height;
     const filterParts = [];
     filterParts.push(`color=black:s=${output_width}x${output_height}:r=${output_fps}[canvas]`);
 
+    // Track which zones are renderable (not entirely outside video bounds)
+    const renderableZoneIndices = [];
+
     for (let i = 0; i < zones.length; i++) {
       const z         = zones[i];
-      const sx        = parseInt(z.src_x) + padL;
-      const sy        = parseInt(z.src_y) + padT;
-      const sw        = parseInt(z.src_w), sh = parseInt(z.src_h);
-      const dw        = parseInt(z.dst_w), dh = parseInt(z.dst_h);
+      const origSrcX  = parseInt(z.src_x);
+      const origSrcY  = parseInt(z.src_y);
+      const origSrcW  = parseInt(z.src_w);
+      const origSrcH  = parseInt(z.src_h);
+      const origDstX  = parseInt(z.dst_x);
+      const origDstY  = parseInt(z.dst_y);
+      const origDstW  = parseInt(z.dst_w);
+      const origDstH  = parseInt(z.dst_h);
+
+      // Scale factors: how src pixels map to dst pixels
+      const scaleX = origDstW / origSrcW;
+      const scaleY = origDstH / origSrcH;
+
+      // Clamp src to video bounds so out-of-bounds areas are simply not rendered
+      // (instead of being filled with black padding that overlays other zones)
+      const clampedSrcX = Math.max(0, Math.min(vidW, origSrcX));
+      const clampedSrcY = Math.max(0, Math.min(vidH, origSrcY));
+      const clampedSrcW = Math.max(0, Math.min(vidW, origSrcX + origSrcW)) - clampedSrcX;
+      const clampedSrcH = Math.max(0, Math.min(vidH, origSrcY + origSrcH)) - clampedSrcY;
+
+      // Skip zones entirely outside the video
+      if (clampedSrcW <= 0 || clampedSrcH <= 0) continue;
+
+      // Adjust dst to match only the clamped portion
+      const sx = clampedSrcX;
+      const sy = clampedSrcY;
+      const sw = clampedSrcW;
+      const sh = clampedSrcH;
+      const dw = Math.round(clampedSrcW * scaleX);
+      const dh = Math.round(clampedSrcH * scaleY);
+      const dx = Math.round(origDstX + (clampedSrcX - origSrcX) * scaleX);
+      const dy = Math.round(origDstY + (clampedSrcY - origSrcY) * scaleY);
+
       const blurSigma = parseFloat(z.blur)    || 0;
       const feather   = parseFloat(z.feather) || 0;
       const shape     = z.shape || 'rect';
@@ -158,18 +179,22 @@ function registerRoutes(app, outputsDir) {
         maskFilter = `,format=yuva420p,geq=lum='lum(X,Y)':cb='cb(X,Y)':cr='cr(X,Y)':a='${alphaExpr}'${featherGblur}`;
       }
 
+      const ri = renderableZoneIndices.length;
+      renderableZoneIndices.push({ dx, dy });
       filterParts.push(
-        `[0:v]${trimFilter}${padFilter}crop=${sw}:${sh}:${sx}:${sy},scale=${dw}:${dh}${blurFilter}${maskFilter}[z${i}]`
+        `[0:v]${trimFilter}crop=${sw}:${sh}:${sx}:${sy},scale=${dw}:${dh}${blurFilter}${maskFilter}[z${ri}]`
       );
     }
 
     let prev = 'canvas';
-    for (let i = 0; i < zones.length; i++) {
-      const dx  = parseInt(zones[i].dst_x);
-      const dy  = parseInt(zones[i].dst_y);
-      const nxt = i < zones.length - 1 ? `ov${i}` : 'out';
+    for (let i = 0; i < renderableZoneIndices.length; i++) {
+      const { dx, dy } = renderableZoneIndices[i];
+      const nxt = i < renderableZoneIndices.length - 1 ? `ov${i}` : 'out';
       filterParts.push(`[${prev}][z${i}]overlay=${dx}:${dy}:format=auto:shortest=1[${nxt}]`);
       prev = nxt;
+    }
+    if (renderableZoneIndices.length === 0) {
+      filterParts.push(`[canvas]null[out]`);
     }
 
     // ── Audio: trim + merge active (non-muted) tracks into one ─────────────

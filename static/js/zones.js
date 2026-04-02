@@ -165,6 +165,23 @@ function setZoneFeather(id, val) {
   if (lbl) lbl.textContent = val > 0 ? val + 'px' : 'off';
 }
 
+function resetSlider(id, type) {
+  pushUndo();
+  if (type === 'src') {
+    setSrcScale(id, 100);
+  } else if (type === 'dst') {
+    setDstScale(id, 100);
+  } else if (type === 'blur') {
+    setZoneBlur(id, 0);
+    const el = document.getElementById('blur-' + id);
+    if (el) el.value = 0;
+  } else if (type === 'feather') {
+    setZoneFeather(id, 0);
+    const el = document.getElementById('feather-' + id);
+    if (el) el.value = 0;
+  }
+}
+
 function copyZone() {
   const z = zones.find(z => z.id === selectedZoneId);
   if (!z) return toast('Select a zone first');
@@ -344,6 +361,7 @@ function renderZonesList() {
       ` : `
       <div class="scale-row" style="margin-top:4px">
         <span class="ci-label" style="color:var(--accent3)">SRC</span>
+        <button class="slider-reset-btn" onclick="event.stopPropagation();resetSlider('${z.id}','src')" title="Reset SRC scale to 100%">↺</button>
         <input type="range" class="scale-slider src-s" id="src-scale-${z.id}" min="10" max="500" step="1"
           value="${Math.round(z.src.w / videoInfo.width * 100)}"
           onmousedown="pushUndo()" oninput="setSrcScale('${z.id}',+this.value)" onclick="event.stopPropagation()">
@@ -352,6 +370,7 @@ function renderZonesList() {
       `}
       <div class="scale-row" style="margin-top:2px">
         <span class="ci-label" style="color:var(--accent)">DST</span>
+        <button class="slider-reset-btn" onclick="event.stopPropagation();resetSlider('${z.id}','dst')" title="Reset DST scale to 100%">↺</button>
         <input type="range" class="scale-slider dst-s" id="dst-scale-${z.id}" min="10" max="500" step="1"
           value="${Math.round(z.dst.w / OUT_W * 100)}"
           onmousedown="pushUndo()" oninput="setDstScale('${z.id}',+this.value)" onclick="event.stopPropagation()">
@@ -362,6 +381,7 @@ function renderZonesList() {
       </div>
       <div class="scale-row" style="margin-top:5px;border-top:1px solid var(--border);padding-top:5px">
         <span class="ci-label" style="color:#a78bfa">BLUR</span>
+        <button class="slider-reset-btn" onclick="event.stopPropagation();resetSlider('${z.id}','blur')" title="Reset blur to off">↺</button>
         <input type="range" class="scale-slider blur-s" id="blur-${z.id}" min="0" max="60" step="1"
           value="${z.blur || 0}"
           onmousedown="pushUndo()" oninput="setZoneBlur('${z.id}',+this.value)" onclick="event.stopPropagation()">
@@ -369,6 +389,7 @@ function renderZonesList() {
       </div>
       <div class="scale-row" style="margin-top:3px">
         <span class="ci-label" style="color:#fb923c">FEATHER</span>
+        <button class="slider-reset-btn" onclick="event.stopPropagation();resetSlider('${z.id}','feather')" title="Reset feather to off">↺</button>
         <input type="range" class="scale-slider feather-s" id="feather-${z.id}" min="0" max="80" step="1"
           value="${z.feather || 0}"
           onmousedown="pushUndo()" oninput="setZoneFeather('${z.id}',+this.value)" onclick="event.stopPropagation()"

@@ -1,0 +1,21 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="512" height="512" rx="90" fill="#0f0f1c"/>
+  <rect x="16" y="16" width="480" height="480" rx="74" stroke="#FF5F1F" stroke-width="16"/>
+
+  <!-- Top horizontal band -->
+  <rect x="16" y="110" width="480" height="60" fill="#FF5F1F" opacity="0.25"/>
+  <!-- Bottom horizontal band -->
+  <rect x="16" y="342" width="480" height="60" fill="#FF5F1F" opacity="0.25"/>
+
+  <!-- Top vertical cut lines -->
+  <line x1="200" y1="16" x2="200" y2="170" stroke="#FF5F1F" stroke-width="16" stroke-linecap="round"/>
+  <line x1="312" y1="16" x2="312" y2="170" stroke="#FF5F1F" stroke-width="16" stroke-linecap="round"/>
+
+  <!-- Bottom vertical cut lines -->
+  <line x1="200" y1="342" x2="200" y2="496" stroke="#FF5F1F" stroke-width="16" stroke-linecap="round"/>
+  <line x1="312" y1="342" x2="312" y2="496" stroke="#FF5F1F" stroke-width="16" stroke-linecap="round"/>
+
+  <!-- Center diamond / play indicator -->
+  <path d="M148 256L256 190L364 256L256 322Z" fill="#FF5F1F"/>
+</svg>

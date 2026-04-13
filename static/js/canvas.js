@@ -338,6 +338,9 @@ function drawOutput() {
     }
   });
 
+  // ── Caption overlay ──────────────────────────────────────────────────────────────
+  if (typeof drawCaptionsOnCanvas === 'function') drawCaptionsOnCanvas();
+
   if (activeSnapLines) {
     outCtx.save();
     outCtx.strokeStyle = '#ffffff'; outCtx.lineWidth = 1;

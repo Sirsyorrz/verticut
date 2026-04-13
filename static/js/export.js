@@ -44,6 +44,9 @@ async function exportVideo() {
     trim_start: trimStart > 0 ? trimStart : undefined,
     trim_end: trimEnd !== null ? trimEnd : undefined,
     muted_tracks: mutedTrackIdxs,
+    // Caption burn-in
+    captions:       (captionStyle.enabled && captions.length) ? captions : undefined,
+    caption_style:  captionStyle.enabled ? captionStyle : undefined,
     zones: zones.filter(z => !z.disabled).map(z => ({
       src_x: z.src.x, src_y: z.src.y, src_w: z.src.w, src_h: z.src.h,
       dst_x: Math.round(z.dst.x * scaleX), dst_y: Math.round(z.dst.y * scaleY),

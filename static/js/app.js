@@ -16,6 +16,13 @@ function resetToStart() {
   renderAudioTracks();
   if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
   if (exportPollTimer) { clearInterval(exportPollTimer); exportPollTimer = null; }
+  if (captionPollTimer) { clearInterval(captionPollTimer); captionPollTimer = null; }
+  captions = []; captionStyle.enabled = false; captionTrackIdx = 0;
+  if (typeof renderSegmentsList === 'function') { renderSegmentsList(); }
+  if (typeof setCaptionStatus === 'function') setCaptionStatus('idle', 'Whisper must be installed: pip install openai-whisper');
+  const ccTog = document.getElementById('cc-enabled-toggle');
+  if (ccTog) { ccTog.checked = false; }
+  if (typeof updateCaptionToggleUI === 'function') updateCaptionToggleUI();
   document.getElementById('editor-area').style.display = 'none';
   document.getElementById('drop-zone').style.display = 'flex';
   document.getElementById('file-info-label').textContent = '';

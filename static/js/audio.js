@@ -72,6 +72,7 @@ function syncTrackEls() {
 
 function renderAudioTracks() {
   const bar = document.getElementById('audio-tracks-bar');
+  if (typeof updateCaptionTrackSelector === 'function') updateCaptionTrackSelector();
   if (!audioTracks.length) { bar.classList.add('hidden'); return; }
   bar.classList.remove('hidden');
   bar.innerHTML = '';

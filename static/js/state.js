@@ -65,6 +65,71 @@ let undoStack = [];
 // Export
 let exportPollTimer = null;
 
+// ── Captions ──────────────────────────────────────────────────────────────────
+// captionTracks: [{ label, trackIdx, color, segments:[{start,end,text,words}] }]
+let captionTracks    = [];
+let activeCaptionTab = 0;   // index into captionTracks currently shown in the panel
+let captionPollTimer = null;
+
+// Track colors — cycled per transcribed track
+const CAPTION_TRACK_COLORS = ['#FF6B35','#3B9EFF','#06D6A0','#FFD60A','#C77DFF','#FF4D6D'];
+
+// Factory — returns a fresh style object with defaults
+function defaultCaptionStyle() {
+  return {
+    fontFamily:    'Arial',
+    fontSize:      72,
+    fontWeight:    'bold',
+    fontItalic:    false,
+    textColor:     '#FFFFFF',
+    strokeColor:   '#000000',
+    strokeWidth:   4,
+    bgColor:       '#000000',
+    bgOpacity:     0,
+    bgPadding:     14,
+    bgRadius:      8,
+    textAlign:     'center',
+    positionX:     50,
+    positionY:     85,
+    maxWidth:      85,
+    lineHeight:    1.25,
+    letterSpacing: 0,
+    allCaps:       false,
+    shadow:        true,
+    shadowColor:   '#000000',
+    highlightEnabled: false,
+    highlightColor:   '#FFD60A',
+    animStyle:     'none',
+  };
+}
+
+let captionStyle = {
+  enabled:       false,
+  fontFamily:    'Arial',
+  fontSize:      72,          // in OUT_H (1920) pixel space
+  fontWeight:    'bold',
+  fontItalic:    false,
+  textColor:     '#FFFFFF',
+  strokeColor:   '#000000',
+  strokeWidth:   4,
+  bgColor:       '#000000',
+  bgOpacity:     0,           // 0–1
+  bgPadding:     14,
+  bgRadius:      8,
+  textAlign:     'center',    // 'left' | 'center' | 'right'
+  positionX:     50,          // % of OUT_W
+  positionY:     85,          // % of OUT_H (from top)
+  maxWidth:      85,          // % of OUT_W
+  lineHeight:    1.25,
+  letterSpacing: 0,
+  allCaps:       false,
+  shadow:        true,
+  shadowColor:   '#000000',
+  highlightEnabled: false,
+  highlightColor:   '#FFD60A',
+  animStyle:     'none',      // 'none' | 'pop' | 'fade'
+};
+
 // ── DOM element references ────────────────────────────────────────────────────
 const srcCanvas  = document.getElementById('video-canvas');
 const ovCanvas   = document.getElementById('zone-overlay');

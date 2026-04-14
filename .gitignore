@@ -1,5 +1,9 @@
 node_modules/
 dist/
+resources/whisper/*.exe
+resources/whisper/*.dll
+resources/whisper/*.so
+resources/whisper/*.dylib
 uploads/
 outputs/
 *.log

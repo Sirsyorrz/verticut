@@ -34,7 +34,7 @@ function getVideoInfo(filepath) {
           codec:    s.codec_name || 'audio',
           channels: s.channels  || 2,
           layout:   s.channel_layout || '',
-          label:    (s.tags && (s.tags.title || s.tags.language)) || `Track ${i + 1}`
+          label:    (s.tags && s.tags.title && s.tags.title.trim()) || `Track ${i + 1}`
         }));
         resolve({
           width: vs.width, height: vs.height, duration: dur, fps: num / den,

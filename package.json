@@ -1,10 +1,13 @@
 {
   "name": "verticut",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "description": "9:16 Vertical Gaming Video Editor",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "download-whisper": "node scripts/download-whisper.js",
+    "prebuild": "node scripts/download-whisper.js",
+    "prebuild-installer": "node scripts/download-whisper.js",
     "build": "electron-builder --win portable",
     "build-installer": "electron-builder --win nsis"
   },
@@ -31,11 +34,16 @@
       "main.js",
       "preload.js",
       "server/**",
-      "static/**"
+      "static/**",
+      "resources/**"
     ],
     "asarUnpack": [
       "node_modules/ffmpeg-static/**",
-      "node_modules/ffprobe-static/**"
+      "node_modules/ffprobe-static/**",
+      "resources/whisper/**"
+    ],
+    "extraResources": [
+      { "from": "resources/whisper", "to": "whisper", "filter": ["**/*"] }
     ],
     "win": {
       "target": [

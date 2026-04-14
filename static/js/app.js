@@ -16,6 +16,19 @@ function resetToStart() {
   renderAudioTracks();
   if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
   if (exportPollTimer) { clearInterval(exportPollTimer); exportPollTimer = null; }
+  if (captionPollTimer) { clearInterval(captionPollTimer); captionPollTimer = null; }
+  captionTracks = []; activeCaptionTab = 0; captionStyle.enabled = false;
+  // Clear both canvases so the previous frame doesn't persist
+  requestAnimationFrame(() => {
+    srcCtx.clearRect(0, 0, srcCanvas.width, srcCanvas.height);
+    outCtx.clearRect(0, 0, outCanvas.width, outCanvas.height);
+  });
+  if (typeof renderSegmentsList === 'function') renderSegmentsList();
+  if (typeof updateCaptionTrackSelector === 'function') updateCaptionTrackSelector();
+  if (typeof setCaptionStatus === 'function') setCaptionStatus('idle', 'Select tracks above and click Generate.');
+  const ccTog = document.getElementById('cc-enabled-toggle');
+  if (ccTog) { ccTog.checked = false; }
+  if (typeof updateCaptionToggleUI === 'function') updateCaptionToggleUI();
   document.getElementById('editor-area').style.display = 'none';
   document.getElementById('drop-zone').style.display = 'flex';
   document.getElementById('file-info-label').textContent = '';

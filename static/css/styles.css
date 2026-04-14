@@ -842,6 +842,247 @@ kbd {
 .settings-toggle input:checked + .toggle-track { background: rgba(255,95,31,0.18); border-color: var(--accent); }
 .settings-toggle input:checked + .toggle-track::before { transform: translateX(15px); background: var(--accent); }
 
+/* ── Panel tabs ───────────────────────────────────────────────────────── */
+.panel-tabs {
+  display: flex; width: 100%;
+}
+.panel-tab {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 9px 0; background: var(--surface2); border: none;
+  color: var(--text-dim); font-family: var(--font-mono); font-size: 0.72rem;
+  font-weight: 600; letter-spacing: 0.06em; cursor: pointer;
+  border-bottom: 2px solid transparent; transition: all 0.15s;
+  text-transform: uppercase;
+}
+.panel-tab:hover { color: var(--text); background: var(--surface3); }
+.panel-tab.active {
+  color: var(--accent); background: var(--surface);
+  border-bottom-color: var(--accent);
+}
+.panel-tab svg { opacity: 0.6; }
+.panel-tab.active svg { opacity: 1; }
+
+/* ── Captions panel scroll container ────────────────────────────────────── */
+.cc-panel-scroll {
+  flex: 1; overflow-y: auto; display: flex; flex-direction: column;
+  gap: 0; min-height: 0;
+}
+
+/* ── Caption sections ─────────────────────────────────────────────────── */
+.cc-section {
+  padding: 12px 14px; border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.cc-segments-section { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.cc-segments-section .cc-section-title { flex-shrink: 0; }
+
+.cc-section-title {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 0.6rem; font-family: var(--font-mono); font-weight: 700;
+  letter-spacing: 0.12em; color: var(--accent3); text-transform: uppercase;
+}
+.cc-sub-label {
+  font-size: 0.58rem; font-family: var(--font-mono); letter-spacing: 0.09em;
+  color: var(--text-dim); text-transform: uppercase; margin-top: 4px; margin-bottom: 2px;
+  padding-bottom: 3px; border-bottom: 1px solid var(--border);
+}
+
+/* ── Caption controls ──────────────────────────────────────────────────── */
+.cc-row {
+  display: flex; align-items: center; gap: 7px;
+}
+.cc-field {
+  display: flex; flex-direction: column; gap: 3px; min-width: 0;
+}
+.cc-label {
+  font-size: 0.58rem; font-family: var(--font-mono); color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.cc-select {
+  background: var(--surface3); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text); font-family: var(--font-mono);
+  font-size: 0.7rem; padding: 5px 8px; outline: none; cursor: pointer;
+  width: 100%;
+}
+.cc-select:focus { border-color: var(--accent3); }
+
+.cc-slider-row {
+  display: flex; align-items: center; gap: 8px;
+}
+.cc-slider-label {
+  font-size: 0.62rem; font-family: var(--font-mono); color: var(--text-dim);
+  min-width: 42px; flex-shrink: 0;
+}
+.cc-slider {
+  flex: 1; -webkit-appearance: none; height: 3px;
+  background: var(--surface3); border-radius: 2px; outline: none; cursor: pointer;
+}
+.cc-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 13px; height: 13px;
+  background: var(--accent3); border-radius: 50%; cursor: pointer;
+  box-shadow: 0 0 6px rgba(255,214,10,0.4);
+}
+.cc-slider-val {
+  font-size: 0.62rem; font-family: var(--font-mono); color: var(--accent3);
+  min-width: 36px; text-align: right;
+}
+
+.cc-chip {
+  padding: 4px 10px; background: var(--surface3); border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text-dim); font-family: var(--font-mono);
+  font-size: 0.7rem; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.cc-chip:hover { border-color: var(--accent3); color: var(--accent3); }
+.cc-chip.active { border-color: var(--accent3); color: var(--accent3); background: rgba(255,214,10,0.08); }
+
+/* ── Color rows ──────────────────────────────────────────────────────────── */
+.cc-color-grid { display: flex; flex-direction: column; gap: 6px; }
+.cc-color-row {
+  display: flex; align-items: center; gap: 7px;
+}
+.cc-color-label {
+  font-size: 0.6rem; font-family: var(--font-mono); color: var(--text-dim);
+  min-width: 42px; flex-shrink: 0;
+}
+.cc-color-swatch {
+  width: 24px; height: 24px; border-radius: 4px; overflow: hidden;
+  border: 1.5px solid var(--border); cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: stretch;
+  transition: border-color 0.15s;
+}
+.cc-color-swatch:hover { border-color: var(--accent3); }
+.cc-color-swatch input[type="color"] {
+  width: 200%; height: 200%; border: none; padding: 0; cursor: pointer;
+  transform: translate(-25%, -25%); background: none;
+}
+.cc-color-hex {
+  font-size: 0.62rem; font-family: var(--font-mono); color: var(--text-dim);
+  min-width: 54px;
+}
+
+/* ── Toggle (inline) ────────────────────────────────────────────────────── */
+.cc-inline-toggle {
+  display: flex; align-items: center; gap: 7px; cursor: pointer;
+}
+.cc-inline-toggle input { display: none; }
+.cc-inline-track {
+  position: relative; display: inline-block; width: 34px; height: 19px;
+  background: var(--surface3); border-radius: 19px; border: 1px solid var(--border);
+  transition: all 0.2s; flex-shrink: 0;
+}
+.cc-inline-track::before {
+  content: ''; position: absolute; width: 13px; height: 13px; left: 2px; top: 2px;
+  background: var(--text-dim); border-radius: 50%; transition: transform 0.2s, background 0.2s;
+}
+.cc-inline-toggle input:checked + .cc-inline-track {
+  background: rgba(255,214,10,0.15); border-color: var(--accent3);
+}
+.cc-inline-toggle input:checked + .cc-inline-track::before {
+  transform: translateX(15px); background: var(--accent3);
+}
+
+/* Caption enabled toggle (in section title) */
+.cc-toggle-wrap {
+  display: flex; align-items: center; gap: 6px; cursor: pointer;
+}
+.cc-toggle-wrap input { display: none; }
+.cc-toggle-track {
+  position: relative; display: inline-block; width: 30px; height: 17px;
+  background: var(--surface3); border-radius: 17px; border: 1px solid var(--border);
+  transition: all 0.2s; flex-shrink: 0;
+}
+.cc-toggle-track::before {
+  content: ''; position: absolute; width: 11px; height: 11px; left: 2px; top: 2px;
+  background: var(--text-dim); border-radius: 50%; transition: transform 0.2s, background 0.2s;
+}
+.cc-toggle-wrap input:checked + .cc-toggle-track { background: rgba(255,214,10,0.15); border-color: var(--accent3); }
+.cc-toggle-wrap input:checked + .cc-toggle-track::before { transform: translateX(13px); background: var(--accent3); }
+.cc-toggle-label {
+  font-size: 0.6rem; font-family: var(--font-mono); font-weight: 700;
+  letter-spacing: 0.1em; color: var(--text-dim);
+}
+.cc-toggle-wrap input:checked ~ .cc-toggle-label { color: var(--accent3); }
+
+/* ── Generate button ──────────────────────────────────────────────────── */
+.cc-generate-btn {
+  width: 100%; padding: 9px; display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: rgba(255,214,10,0.07); border: 1px solid rgba(255,214,10,0.3);
+  border-radius: var(--radius); color: var(--accent3); font-family: var(--font-mono);
+  font-size: 0.78rem; font-weight: 700; letter-spacing: 0.05em; cursor: pointer;
+  transition: all 0.2s;
+}
+.cc-generate-btn:hover {
+  background: rgba(255,214,10,0.13); border-color: var(--accent3);
+  box-shadow: 0 0 14px rgba(255,214,10,0.15);
+}
+.cc-generate-btn:disabled {
+  opacity: 0.4; cursor: not-allowed; box-shadow: none;
+}
+
+/* ── Status text ──────────────────────────────────────────────────────────── */
+.cc-status-text {
+  font-size: 0.65rem; font-family: var(--font-mono); color: var(--text-dim);
+  line-height: 1.5; min-height: 14px;
+}
+.cc-status-text code {
+  background: var(--surface3); border: 1px solid var(--border);
+  border-radius: 3px; padding: 1px 5px; font-family: var(--font-mono); font-size: 0.62rem;
+}
+.cc-status-running { color: var(--accent3); }
+.cc-status-done    { color: #06D6A0; }
+.cc-status-error   { color: var(--accent2); }
+
+/* ── Segment list ────────────────────────────────────────────────────────── */
+.cc-seg-count {
+  font-size: 0.6rem; background: rgba(255,214,10,0.12); border: 1px solid rgba(255,214,10,0.25);
+  border-radius: 8px; padding: 1px 7px; color: var(--accent3); font-family: var(--font-mono);
+}
+.cc-icon-btn {
+  background: none; border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text-dim); font-family: var(--font-mono); font-size: 0.62rem;
+  padding: 2px 7px; cursor: pointer; transition: all 0.12s;
+}
+.cc-icon-btn:hover { color: var(--accent2); border-color: rgba(255,51,88,0.4); }
+.cc-segments-list {
+  flex: 1; overflow-y: auto; min-height: 0;
+  display: flex; flex-direction: column; gap: 2px; padding: 4px 0;
+}
+.cc-segment {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 5px;
+  transition: border-color 0.15s;
+}
+.cc-segment:hover { border-color: rgba(255,214,10,0.25); }
+.cc-seg-times {
+  display: flex; align-items: center; gap: 5px;
+}
+.cc-time-input {
+  width: 60px; padding: 3px 5px;
+  background: var(--surface3); border: 1px solid var(--border);
+  border-radius: 3px; color: var(--text); font-family: var(--font-mono); font-size: 0.62rem;
+  text-align: center; outline: none;
+}
+.cc-time-input:focus { border-color: var(--accent3); color: var(--accent3); }
+.cc-seg-arrow { font-size: 0.62rem; color: var(--text-dim); }
+.cc-seg-del {
+  margin-left: auto; background: none; border: none; color: var(--text-dim);
+  cursor: pointer; font-size: 0.72rem; padding: 2px 5px; border-radius: 3px;
+  transition: all 0.12s;
+}
+.cc-seg-del:hover { color: var(--accent2); background: rgba(255,51,88,0.1); }
+.cc-seg-text {
+  width: 100%; resize: none; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 3px; color: var(--text); font-family: var(--font-main); font-size: 0.74rem;
+  line-height: 1.4; padding: 5px 7px; outline: none; min-height: 38px;
+  overflow: hidden;
+}
+.cc-seg-text:focus { border-color: var(--accent3); }
+.cc-empty-state {
+  padding: 20px 10px; text-align: center; font-size: 0.72rem;
+  font-family: var(--font-mono); color: var(--text-dim); line-height: 1.6;
+}
+
 /* ── Light mode overrides ─────────────────────────────────────────────────── */
 body.light-mode {
   --bg: #F2F0EC; --surface: #FAFAF8; --surface2: #EDECE8; --surface3: #E0DED8;
@@ -862,3 +1103,125 @@ body.light-mode .presets-dropdown { box-shadow: 0 -6px 28px rgba(0,0,0,0.12); }
 body.light-mode .pd-game-header:hover { background: var(--surface3); }
 body.light-mode .pd-preset { border-top-color: var(--border); }
 body.light-mode .export-btn { color: #fff; }
+
+/* ── CUDA / GPU error modal ────────────────────────────────────────────────── */
+#cuda-modal {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+}
+.cuda-modal-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 36px 32px 28px;
+  max-width: 420px; width: 90%;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  text-align: center;
+}
+.cuda-modal-icon { font-size: 42px; line-height: 1; }
+.cuda-modal-title {
+  font-size: 18px; font-weight: 700;
+  color: var(--text); letter-spacing: -0.3px;
+}
+.cuda-modal-body {
+  font-size: 13px; color: var(--text-dim); line-height: 1.7;
+}
+.cuda-modal-body strong { color: var(--text); }
+.cuda-modal-note {
+  font-size: 11.5px; color: var(--text-dim); opacity: 0.75;
+}
+.cuda-modal-btn {
+  margin-top: 8px;
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 8px;
+  padding: 10px 32px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: opacity 0.15s;
+}
+.cuda-modal-btn:hover { opacity: 0.85; }
+
+/* ── Multi-track picker ─────────────────────────────────────────────────────── */
+.cc-track-picker { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }
+.cc-track-picker-row {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 7px; padding: 6px 10px;
+  transition: border-color 0.15s;
+}
+.cc-track-picker-row:focus-within { border-color: var(--accent); }
+.cc-track-check-wrap { display: flex; align-items: center; gap: 6px; cursor: pointer; flex-shrink: 0; }
+.cc-track-check { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+.cc-track-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.cc-track-label-input {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: var(--text); font-size: 0.72rem; font-weight: 500;
+  min-width: 0;
+}
+.cc-track-label-input::placeholder { color: var(--text-dim); }
+.cc-track-detail { font-size: 0.63rem; color: var(--text-dim); flex-shrink: 0; white-space: nowrap; }
+
+/* ── Track tabs in segments panel ──────────────────────────────────────────── */
+.cc-track-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.cc-track-tab {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text-dim);
+  font-size: 0.67rem; font-weight: 600; cursor: pointer; transition: all 0.15s;
+  letter-spacing: 0.02em;
+}
+.cc-track-tab:hover { border-color: var(--tab-color, var(--accent)); color: var(--text); }
+.cc-track-tab.active {
+  background: color-mix(in srgb, var(--tab-color, var(--accent)) 15%, var(--surface2));
+  border-color: var(--tab-color, var(--accent));
+  color: var(--text);
+}
+.cc-track-tab-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.cc-track-tab-count {
+  background: var(--surface3); border-radius: 4px;
+  padding: 1px 5px; font-size: 0.6rem; color: var(--text-dim);
+}
+.cc-track-tab.active .cc-track-tab-count { background: color-mix(in srgb, var(--tab-color, var(--accent)) 25%, var(--surface3)); }
+
+/* ── Segment color accent ───────────────────────────────────────────────────── */
+.cc-segment { border-left: 2px solid var(--seg-color, var(--accent)); }
+
+/* ── Per-track style badge in caption style header ─────────────────────────── */
+.cc-track-style-badge {
+  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.04em;
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface2));
+  color: var(--accent); border-radius: 4px; padding: 2px 6px;
+  display: none;
+}
+
+/* ── Per-segment override button & panel ───────────────────────────────────── */
+.cc-seg-override-btn {
+  background: none; border: 1px solid var(--border); border-radius: 5px;
+  color: var(--text-dim); font-size: 0.7rem; padding: 1px 5px;
+  cursor: pointer; transition: all 0.15s; line-height: 1;
+}
+.cc-seg-override-btn:hover { border-color: var(--accent); color: var(--accent); }
+.cc-seg-override-btn.active { background: color-mix(in srgb, var(--accent) 15%, transparent); border-color: var(--accent); color: var(--accent); }
+
+.cc-seg-has-override { border-left-width: 3px; }
+
+.cc-seg-override {
+  margin-top: 6px; padding: 8px 10px;
+  background: var(--surface3); border-radius: 6px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.cc-seg-override-row {
+  display: flex; align-items: center; gap: 6px;
+}
+.cc-seg-ov-label {
+  font-size: 0.62rem; color: var(--text-dim); min-width: 36px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.cc-swatch-sm { width: 20px; height: 20px; border-radius: 4px; }
+.cc-seg-reset-ov {
+  align-self: flex-start; background: none; border: 1px solid var(--border);
+  border-radius: 5px; color: var(--text-dim); font-size: 0.62rem;
+  padding: 3px 8px; cursor: pointer; margin-top: 2px; transition: all 0.15s;
+}
+.cc-seg-reset-ov:hover { border-color: var(--accent2, #ff4d6d); color: var(--accent2, #ff4d6d); }

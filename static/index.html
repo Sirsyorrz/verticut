@@ -109,7 +109,21 @@
     <div class="resize-handle" id="rh2"></div>
 
     <div class="zones-panel">
-      <div class="panel-header"><div class="section-title">Zones</div></div>
+      <div class="panel-header" style="padding:0;border-bottom:1px solid var(--border)">
+        <div class="panel-tabs">
+          <button class="panel-tab active" id="ptab-zones" onclick="switchPanelTab('zones')">
+            <svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="0.75" y="0.75" width="3" height="3"/><rect x="5.25" y="0.75" width="3" height="3"/><rect x="0.75" y="5.25" width="3" height="3"/><rect x="5.25" y="5.25" width="3" height="3"/></svg>
+            Zones
+          </button>
+          <button class="panel-tab" id="ptab-captions" onclick="switchPanelTab('captions')">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><polygon points="5,0.5 6.3,3.7 9.8,3.9 7.2,6.2 8,9.5 5,7.8 2,9.5 2.8,6.2 0.2,3.9 3.7,3.7"/></svg>
+            Captions
+          </button>
+        </div>
+      </div>
+
+      <!-- Zones tab content -->
+      <div id="panel-zones-content" style="display:contents">
       <div class="zones-scroll" id="zones-list">
         <div style="font-size:.72rem;font-family:var(--font-mono);color:var(--text-dim);line-height:1.9;padding:4px">
           Load a video then draw crop zones.<br><br>Drag zones on either canvas to reposition.
@@ -123,6 +137,12 @@
           <span class="presets-count" id="presets-count"></span>
           <span class="presets-chevron">&#9662;</span>
         </button>
+      </div>
+      </div><!-- /panel-zones-content -->
+
+      <!-- Captions tab content -->
+      <div id="panel-captions-content" class="cc-panel-scroll" style="display:none">
+        <!-- Populated by captions.js -->
       </div>
     </div>
   </div>
@@ -240,6 +260,22 @@
 
 <div id="toast"></div>
 
+<!-- CUDA / GPU error modal -->
+<div id="cuda-modal" style="display:none">
+  <div class="cuda-modal-box">
+    <div class="cuda-modal-icon">⚠️</div>
+    <div class="cuda-modal-title">NVIDIA GPU Required</div>
+    <div class="cuda-modal-body">
+      Captions use <strong>faster-whisper</strong> which requires an <strong>NVIDIA GPU with CUDA</strong>.
+      <br><br>
+      An AMD, Intel, or no dedicated GPU was detected — captions are not available on this machine.
+      <br><br>
+      <span class="cuda-modal-note">If you do have an NVIDIA GPU, make sure your drivers are up to date and try restarting VertiCut.</span>
+    </div>
+    <button class="cuda-modal-btn" onclick="document.getElementById('cuda-modal').style.display='none'">Got it</button>
+  </div>
+</div>
+
 <!-- Scripts loaded in dependency order -->
 <script src="js/state.js"></script>
 <script src="js/utils.js"></script>
@@ -250,6 +286,7 @@
 <script src="js/zones.js"></script>
 <script src="js/presets.js"></script>
 <script src="js/export.js"></script>
+<script src="js/captions.js"></script>
 <script src="js/interaction.js"></script>
 <script src="js/app.js"></script>
 </body>

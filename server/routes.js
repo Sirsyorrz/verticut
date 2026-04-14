@@ -5,6 +5,7 @@ const fs   = require('fs');
 
 const { ffmpegPath, getVideoInfo } = require('./ffmpeg');
 const { getJob, setJob, setProc, deleteProc, getFilePath, setFilePath } = require('./jobs');
+const { checkWhisper, transcribeVideo, generateASSFile, generateMultiTrackASSFile } = require('./whisper');
 
 function registerRoutes(app, outputsDir) {
 
@@ -35,6 +36,58 @@ function registerRoutes(app, outputsDir) {
     const fp = getFilePath(req.params.filename);
     if (!fp || !fs.existsSync(fp)) return res.status(404).send('Not found');
     res.sendFile(fp);
+  });
+
+  // ── GET /whisper_check ──────────────────────────────────────────────────────
+  app.get('/whisper_check', (req, res) => {
+    res.json(checkWhisper());
+  });
+
+  // ── POST /transcribe_multi ──────────────────────────────────────────────────
+  // Body: { filename, model, language, tracks: [{ track_idx, label }] }
+  // Transcribes each requested track in parallel, returns one job ID.
+  app.post('/transcribe_multi', async (req, res) => {
+    const { filename, model = 'base', language = null, tracks = [] } = req.body;
+    if (!filename)       return res.status(400).json({ error: 'No filename provided' });
+    if (!tracks.length)  return res.status(400).json({ error: 'No tracks specified' });
+    const filepath = getFilePath(filename);
+    if (!filepath || !fs.existsSync(filepath))
+      return res.status(404).json({ error: 'Source video not found' });
+
+    const jobId = uuidv4();
+    // trackResults: array matching tracks[], each entry starts as { status:'running' }
+    const trackResults = tracks.map(t => ({ label: t.label || `Track ${t.track_idx + 1}`, trackIdx: t.track_idx, status: 'running', segments: null, error: null }));
+    setJob(jobId, { status: 'running', error: null, tracks: trackResults });
+
+    // Run all tracks in parallel
+    Promise.all(
+      tracks.map((t, i) =>
+        transcribeVideo(filepath, model, language, outputsDir, t.track_idx)
+          .then(segments => {
+            trackResults[i].status   = 'done';
+            trackResults[i].segments = segments;
+          })
+          .catch(err => {
+            trackResults[i].status = 'error';
+            trackResults[i].error  = err.message;
+          })
+      )
+    ).then(() => {
+      const j = getJob(jobId);
+      if (!j) return;
+      const anyError = trackResults.every(t => t.status === 'error');
+      j.status = anyError ? 'error' : 'done';
+      if (anyError) j.error = trackResults.map(t => t.error).join(' | ');
+    });
+
+    res.json({ job_id: jobId });
+  });
+
+  // ── GET /transcribe_status/:jobId ───────────────────────────────────────────
+  app.get('/transcribe_status/:jobId', (req, res) => {
+    const job = getJob(req.params.jobId);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    res.json({ status: job.status, tracks: job.tracks || null, error: job.error || null });
   });
 
   // ── GET /audio_track/:filename/:idx ────────────────────────────────────────
@@ -232,11 +285,23 @@ function registerRoutes(app, outputsDir) {
       }
     }
 
+    // ── Caption burn-in (ASS subtitle overlay) ──────────────────────────────────
+    let captionAssPath  = null;
+    let finalVideoLabel = 'out';
+    const captionTracks = data.caption_tracks; // [{ segments, style }]
+    if (captionTracks?.length && data.caption_style?.enabled) {
+      captionAssPath = path.join(outputsDir, `captions_${outId}.ass`).replace(/\\/g, '/');
+      generateMultiTrackASSFile(captionTracks, captionAssPath, output_width, output_height, trimStart, trimEnd);
+      const assEscaped = captionAssPath.replace(/:/g, '\\\\:');
+      filterParts.push(`[out]subtitles='${assEscaped}'[out_cc]`);
+      finalVideoLabel = 'out_cc';
+    }
+
     const fullFilterComplex = filterParts.join(';') + audioFilterStr;
     const cmd = [
       '-i', filepath,
       '-filter_complex', fullFilterComplex,
-      '-map', '[out]',
+      '-map', `[${finalVideoLabel}]`,
       ...(audioMapArg ? ['-map', audioMapArg] : []),
       '-c:v', 'libx264', '-crf', '18', '-preset', 'fast',
       ...(audioMapArg ? ['-c:a', 'aac', '-b:a', '192k'] : []),
@@ -266,6 +331,7 @@ function registerRoutes(app, outputsDir) {
         job.error  = stderrBuf || `FFmpeg exited with code ${code}`;
       }
       try { fs.unlinkSync(progressPath); } catch {}
+      if (captionAssPath) { try { fs.unlinkSync(captionAssPath); } catch {} }
     });
 
     res.json({ job_id: jobId });

@@ -44,8 +44,13 @@ async function exportVideo() {
     trim_start: trimStart > 0 ? trimStart : undefined,
     trim_end: trimEnd !== null ? trimEnd : undefined,
     muted_tracks: mutedTrackIdxs,
-    // Caption burn-in
-    captions:       (captionStyle.enabled && captions.length) ? captions : undefined,
+    // Caption burn-in — send all tracks with their individual styles
+    caption_tracks: (captionStyle.enabled && captionTracks.some(t => t.segments.length))
+                      ? captionTracks.filter(t => t.segments.length).map(t => ({
+                          segments: t.segments,
+                          style: Object.assign({}, captionStyle, t.style || {}),
+                        }))
+                      : undefined,
     caption_style:  captionStyle.enabled ? captionStyle : undefined,
     zones: zones.filter(z => !z.disabled).map(z => ({
       src_x: z.src.x, src_y: z.src.y, src_w: z.src.w, src_h: z.src.h,

@@ -3,8 +3,24 @@ const { spawn, spawnSync } = require('child_process');
 const path   = require('path');
 const fs     = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const { app } = require('electron').remote ?? require('@electron/remote') ?? {};
 const { ffmpegPath } = require('./ffmpeg');
+
+// ── Build env with CUDA lib path guaranteed to be present ─────────────────────
+function cudaEnv() {
+  const cudaPaths = [
+    '/opt/cuda/lib64',
+    '/usr/local/cuda/lib64',
+    '/usr/lib/cuda/lib64',
+  ];
+  const existing = (process.env.LD_LIBRARY_PATH || '').split(':').filter(Boolean);
+  const merged   = [...new Set([...cudaPaths, ...existing])].join(':');
+
+  // Preload tcmalloc to prevent glibc "double free or corruption" with CTranslate2
+  const tcmalloc = '/usr/lib/libtcmalloc_minimal.so.4';
+  const preload   = [tcmalloc, process.env.LD_PRELOAD].filter(Boolean).join(':');
+
+  return { ...process.env, LD_LIBRARY_PATH: merged, LD_PRELOAD: preload };
+}
 
 // ── Resolve the resources/ dir whether in asar or dev ─────────────────────────
 function resourcesDir() {
@@ -16,6 +32,9 @@ function resourcesDir() {
 
 // ── Locate the Purfview faster-whisper standalone exe ─────────────────────────
 function findWhisperExe() {
+  // The bundled exe is a Windows binary — never attempt to run it on Linux/macOS
+  if (process.platform !== 'win32') return null;
+
   const candidates = [
     path.join(resourcesDir(), 'whisper', 'faster-whisper.exe'), // packaged Windows
     path.join(resourcesDir(), 'whisper', 'faster-whisper'),      // packaged Linux
@@ -56,7 +75,11 @@ for seg in segments:
         'words': [{'word': w.word.strip(), 'start': w.start, 'end': w.end} for w in (seg.words or [])],
     })
 
-print(json.dumps(result))
+import sys
+sys.stdout.write(json.dumps(result))
+sys.stdout.flush()
+import os
+os._exit(0)
 `;
 
 // ── Detect a working Python + faster-whisper install ──────────────────────────
@@ -167,7 +190,7 @@ async function transcribeVideo(filePath, model = 'base', language = null, output
       if (language && language !== 'auto') args.push('--language', language);
 
       await new Promise((resolve, reject) => {
-        const proc = spawn(wc.exePath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+        const proc = spawn(wc.exePath, args, { stdio: ['ignore', 'pipe', 'pipe'], env: cudaEnv() });
         let stderr = '';
         proc.stderr.on('data', d => { stderr += d.toString(); });
         proc.on('close', code => {
@@ -194,13 +217,16 @@ async function transcribeVideo(filePath, model = 'base', language = null, output
     if (language && language !== 'auto') pyArgs.push(language);
 
     return await new Promise((resolve, reject) => {
-      const proc = spawn(wc.python, pyArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+      const proc = spawn(wc.python, pyArgs, { stdio: ['ignore', 'pipe', 'pipe'], env: cudaEnv() });
       let stdout = '', stderr = '';
       proc.stdout.on('data', d => { stdout += d.toString(); });
       proc.stderr.on('data', d => { stderr += d.toString(); });
-      proc.on('close', code => {
+      proc.on('close', (code, signal) => {
         try { fs.unlinkSync(scriptPath); } catch {}
-        if (code !== 0) return reject(new Error(`faster-whisper exited ${code}: ${stderr.slice(-600)}`));
+        if (code !== 0 || signal) {
+          const detail = stderr.slice(-1000) || '(no stderr)';
+          return reject(new Error(`faster-whisper exited code=${code} signal=${signal}\n${detail}`));
+        }
         try { resolve(JSON.parse(stdout)); }
         catch (e) { reject(new Error(`Failed to parse faster-whisper output: ${e.message}`)); }
       });
@@ -290,4 +316,78 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   fs.writeFileSync(outputPath, ass, 'utf8');
 }
 
-module.exports = { checkWhisper, transcribeVideo, generateASSFile };
+// ── Generate .ass with one named Style per track, all overlaid simultaneously ──────
+function generateMultiTrackASSFile(tracks, outputPath, playResX = 1080, playResY = 1920, trimStart = 0, trimEnd = null) {
+  const clipEnd = trimEnd !== null ? (trimEnd - trimStart) : Infinity;
+
+  // Build style rows
+  const styleRows = tracks.map((track, ti) => {
+    const style    = track.style || {};
+    const fontName = (style.fontFamily || 'Arial').replace(/['"]/g, '').trim();
+    const fontSize = Math.max(8, Math.round(style.fontSize || 72));
+    const bold     = ['bold','700','800','900','black','heavy'].includes(String(style.fontWeight || 'bold').toLowerCase()) ? -1 : 0;
+    const italic   = style.fontItalic ? -1 : 0;
+    const spacing  = Math.max(0, Math.round(style.letterSpacing || 0));
+    const primary  = cssToASS(style.textColor   || '#FFFFFF', 1);
+    const outline  = cssToASS(style.strokeColor || '#000000', 1);
+    const hasBg    = (style.bgOpacity || 0) > 0.05;
+    const borderSt = hasBg ? 3 : 1;
+    const back     = hasBg ? cssToASS(style.bgColor || '#000000', style.bgOpacity) : '&H00000000';
+    const outlineW = hasBg ? 0 : Math.max(0, Math.round(style.strokeWidth || 4));
+    const shadow   = (!hasBg && style.shadow !== false) ? 2 : 0;
+    const assAlign = style.textAlign === 'left' ? 1 : style.textAlign === 'right' ? 3 : 2;
+    return `Style: Track${ti},${fontName},${fontSize},${primary},${primary},${outline},${back},${bold},${italic},0,0,100,100,${spacing},0,${borderSt},${outlineW},${shadow},${assAlign},40,40,40,1`;
+  }).join('\n');
+
+  let ass = `[Script Info]
+ScriptType: v4.00+
+Collisions: Normal
+PlayResX: ${playResX}
+PlayResY: ${playResY}
+Timer: 100.0000
+WrapStyle: 0
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+${styleRows}
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+
+  tracks.forEach((track, ti) => {
+    const style  = track.style || {};
+    const posX   = Math.round(((style.positionX ?? 50) / 100) * playResX);
+    const posY   = Math.round(((style.positionY ?? 85) / 100) * playResY);
+    const allCaps = style.allCaps || false;
+    const styleName = `Track${ti}`;
+
+    for (const seg of (track.segments || [])) {
+      // Per-segment style override — write as inline ASS tags
+      const ov    = seg.styleOverride || {};
+      const fposX = ov.positionX != null ? Math.round((ov.positionX / 100) * playResX) : posX;
+      const fposY = ov.positionY != null ? Math.round((ov.positionY / 100) * playResY) : posY;
+      const fsize = ov.fontSize  != null ? Math.round(ov.fontSize) : null;
+      const fclr  = ov.textColor ? cssToASS(ov.textColor, 1) : null;
+
+      const ss = seg.start - trimStart;
+      const se = seg.end   - trimStart;
+      if (se <= 0 || ss >= clipEnd) continue;
+      const cs2 = Math.max(0, ss);
+      const ce2 = Math.min(clipEnd, se);
+
+      let text = (allCaps ? seg.text.toUpperCase() : seg.text).trim();
+      text = text.replace(/\\/g, '').replace(/\{/g, '').replace(/\n/g, '\\N');
+
+      let inlineTags = `\\an5\\pos(${fposX},${fposY})`;
+      if (fsize) inlineTags += `\\fs${fsize}`;
+      if (fclr)  inlineTags += `\\1c${fclr}`;
+
+      ass += `Dialogue: ${ti},${toASSTime(cs2)},${toASSTime(ce2)},${styleName},,0,0,0,,{${inlineTags}}${text}\n`;
+    }
+  });
+
+  fs.writeFileSync(outputPath, ass, 'utf8');
+}
+
+module.exports = { checkWhisper, transcribeVideo, generateASSFile, generateMultiTrackASSFile };

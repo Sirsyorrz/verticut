@@ -66,9 +66,43 @@ let undoStack = [];
 let exportPollTimer = null;
 
 // ── Captions ──────────────────────────────────────────────────────────────────
-let captions = [];          // [{start, end, text, words:[{word,start,end}]}]
+// captionTracks: [{ label, trackIdx, color, segments:[{start,end,text,words}] }]
+let captionTracks    = [];
+let activeCaptionTab = 0;   // index into captionTracks currently shown in the panel
 let captionPollTimer = null;
-let captionTrackIdx = 0;    // which audio track to send to Whisper
+
+// Track colors — cycled per transcribed track
+const CAPTION_TRACK_COLORS = ['#FF6B35','#3B9EFF','#06D6A0','#FFD60A','#C77DFF','#FF4D6D'];
+
+// Factory — returns a fresh style object with defaults
+function defaultCaptionStyle() {
+  return {
+    fontFamily:    'Arial',
+    fontSize:      72,
+    fontWeight:    'bold',
+    fontItalic:    false,
+    textColor:     '#FFFFFF',
+    strokeColor:   '#000000',
+    strokeWidth:   4,
+    bgColor:       '#000000',
+    bgOpacity:     0,
+    bgPadding:     14,
+    bgRadius:      8,
+    textAlign:     'center',
+    positionX:     50,
+    positionY:     85,
+    maxWidth:      85,
+    lineHeight:    1.25,
+    letterSpacing: 0,
+    allCaps:       false,
+    shadow:        true,
+    shadowColor:   '#000000',
+    highlightEnabled: false,
+    highlightColor:   '#FFD60A',
+    animStyle:     'none',
+  };
+}
+
 let captionStyle = {
   enabled:       false,
   fontFamily:    'Arial',

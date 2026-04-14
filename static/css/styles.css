@@ -1141,3 +1141,87 @@ body.light-mode .export-btn { color: #fff; }
   cursor: pointer; transition: opacity 0.15s;
 }
 .cuda-modal-btn:hover { opacity: 0.85; }
+
+/* ── Multi-track picker ─────────────────────────────────────────────────────── */
+.cc-track-picker { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }
+.cc-track-picker-row {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 7px; padding: 6px 10px;
+  transition: border-color 0.15s;
+}
+.cc-track-picker-row:focus-within { border-color: var(--accent); }
+.cc-track-check-wrap { display: flex; align-items: center; gap: 6px; cursor: pointer; flex-shrink: 0; }
+.cc-track-check { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+.cc-track-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.cc-track-label-input {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: var(--text); font-size: 0.72rem; font-weight: 500;
+  min-width: 0;
+}
+.cc-track-label-input::placeholder { color: var(--text-dim); }
+.cc-track-detail { font-size: 0.63rem; color: var(--text-dim); flex-shrink: 0; white-space: nowrap; }
+
+/* ── Track tabs in segments panel ──────────────────────────────────────────── */
+.cc-track-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.cc-track-tab {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text-dim);
+  font-size: 0.67rem; font-weight: 600; cursor: pointer; transition: all 0.15s;
+  letter-spacing: 0.02em;
+}
+.cc-track-tab:hover { border-color: var(--tab-color, var(--accent)); color: var(--text); }
+.cc-track-tab.active {
+  background: color-mix(in srgb, var(--tab-color, var(--accent)) 15%, var(--surface2));
+  border-color: var(--tab-color, var(--accent));
+  color: var(--text);
+}
+.cc-track-tab-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.cc-track-tab-count {
+  background: var(--surface3); border-radius: 4px;
+  padding: 1px 5px; font-size: 0.6rem; color: var(--text-dim);
+}
+.cc-track-tab.active .cc-track-tab-count { background: color-mix(in srgb, var(--tab-color, var(--accent)) 25%, var(--surface3)); }
+
+/* ── Segment color accent ───────────────────────────────────────────────────── */
+.cc-segment { border-left: 2px solid var(--seg-color, var(--accent)); }
+
+/* ── Per-track style badge in caption style header ─────────────────────────── */
+.cc-track-style-badge {
+  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.04em;
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface2));
+  color: var(--accent); border-radius: 4px; padding: 2px 6px;
+  display: none;
+}
+
+/* ── Per-segment override button & panel ───────────────────────────────────── */
+.cc-seg-override-btn {
+  background: none; border: 1px solid var(--border); border-radius: 5px;
+  color: var(--text-dim); font-size: 0.7rem; padding: 1px 5px;
+  cursor: pointer; transition: all 0.15s; line-height: 1;
+}
+.cc-seg-override-btn:hover { border-color: var(--accent); color: var(--accent); }
+.cc-seg-override-btn.active { background: color-mix(in srgb, var(--accent) 15%, transparent); border-color: var(--accent); color: var(--accent); }
+
+.cc-seg-has-override { border-left-width: 3px; }
+
+.cc-seg-override {
+  margin-top: 6px; padding: 8px 10px;
+  background: var(--surface3); border-radius: 6px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.cc-seg-override-row {
+  display: flex; align-items: center; gap: 6px;
+}
+.cc-seg-ov-label {
+  font-size: 0.62rem; color: var(--text-dim); min-width: 36px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.cc-swatch-sm { width: 20px; height: 20px; border-radius: 4px; }
+.cc-seg-reset-ov {
+  align-self: flex-start; background: none; border: 1px solid var(--border);
+  border-radius: 5px; color: var(--text-dim); font-size: 0.62rem;
+  padding: 3px 8px; cursor: pointer; margin-top: 2px; transition: all 0.15s;
+}
+.cc-seg-reset-ov:hover { border-color: var(--accent2, #ff4d6d); color: var(--accent2, #ff4d6d); }

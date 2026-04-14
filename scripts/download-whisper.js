@@ -123,7 +123,10 @@ async function main() {
     }
   }
 
-  // 5. Clean up archive only after confirming exe exists
+  // 5. Ensure the exe is executable (needed on Linux/macOS build machines)
+  try { fs.chmodSync(EXE_PATH, 0o755); } catch {}
+
+  // 6. Clean up archive only after confirming exe exists
   try { fs.unlinkSync(archivePath); } catch {}
 
   console.log(`✓ faster-whisper.exe ready at ${EXE_PATH}`);

@@ -2,21 +2,31 @@
 
 // ── Caption canvas rendering ───────────────────────────────────────────────────
 function drawCaptionsOnCanvas() {
-  if (!captionStyle.enabled || !captions.length || !videoEl) return;
+  if (!captionStyle.enabled || !captionTracks.length || !videoEl) return;
   const t = videoEl.currentTime;
 
-  // Find current segment
-  const seg = captions.find(c => t >= c.start && t < c.end);
-  if (!seg) return;
+  // Draw every active segment across all tracks simultaneously
+  for (const track of captionTracks) {
+    // Resolve track style: track.style overrides global captionStyle
+    const cs = Object.assign({}, captionStyle, track.style || {});
 
-  const cs  = captionStyle;
+    for (const seg of track.segments) {
+      if (t < seg.start || t >= seg.end) continue;
+
+      // Per-segment style override on top of track style
+      const scs = seg.styleOverride ? Object.assign({}, cs, seg.styleOverride) : cs;
+      _drawOneSeg(seg, scs, t);
+    }
+  }
+}
+
+function _drawOneSeg(seg, cs, t) {
   const cw  = outCanvas.width;
   const ch  = outCanvas.height;
-  const scl = outScale; // canvas scale factor
+  const scl = outScale;
 
   let displayText = cs.allCaps ? seg.text.toUpperCase() : seg.text;
 
-  // Font
   const fs      = Math.max(4, cs.fontSize * scl);
   const weight  = cs.fontWeight === 'black' ? '900' : cs.fontWeight;
   const fontStr = `${cs.fontItalic ? 'italic ' : ''}${weight} ${fs}px "${cs.fontFamily}", Arial, sans-serif`;
@@ -26,9 +36,9 @@ function drawCaptionsOnCanvas() {
   outCtx.textAlign = cs.textAlign;
 
   // Word-wrap
-  const maxW   = (cs.maxWidth / 100) * cw;
+  const maxW    = (cs.maxWidth / 100) * cw;
   const rawWords = displayText.split(' ');
-  const lines  = [];
+  const lines   = [];
   let line = '';
   for (const w of rawWords) {
     const test = line ? line + ' ' + w : w;
@@ -42,46 +52,33 @@ function drawCaptionsOnCanvas() {
   const cx     = (cs.positionX / 100) * cw;
   const cy     = (cs.positionY / 100) * ch;
 
-  // Compute word-level data for highlight (per-line)
-  let wordTimes = [];
-  if (cs.highlightEnabled && seg.words && seg.words.length) {
-    wordTimes = seg.words;
-  }
+  const wordTimes = (cs.highlightEnabled && seg.words?.length) ? seg.words : [];
 
-  // ── Background box ──────────────────────────────────────────────────────────
+  // Background box
   if (cs.bgOpacity > 0) {
-    const pad    = cs.bgPadding * scl;
-    const lineWidths = lines.map(l => outCtx.measureText(l).width);
-    const maxLW  = Math.max(...lineWidths);
-    const bgW    = maxLW + pad * 2;
-    const bgH    = totalH + pad * 2;
-    const bgX    = cs.textAlign === 'center' ? cx - bgW / 2 :
-                   cs.textAlign === 'right'  ? cx - bgW    : cx;
-    const bgY    = cy - totalH / 2 - pad;
-    const r      = cs.bgRadius * scl;
-
+    const pad  = cs.bgPadding * scl;
+    const maxLW = Math.max(...lines.map(l => outCtx.measureText(l).width));
+    const bgW  = maxLW + pad * 2;
+    const bgH  = totalH + pad * 2;
+    const bgX  = cs.textAlign === 'center' ? cx - bgW / 2 :
+                 cs.textAlign === 'right'  ? cx - bgW    : cx;
+    const bgY  = cy - totalH / 2 - pad;
+    const r    = cs.bgRadius * scl;
     outCtx.globalAlpha = cs.bgOpacity;
     outCtx.fillStyle   = cs.bgColor;
     if (r > 0 && outCtx.roundRect) {
-      outCtx.beginPath();
-      outCtx.roundRect(bgX, bgY, bgW, bgH, r);
-      outCtx.fill();
-    } else {
-      outCtx.fillRect(bgX, bgY, bgW, bgH);
-    }
+      outCtx.beginPath(); outCtx.roundRect(bgX, bgY, bgW, bgH, r); outCtx.fill();
+    } else { outCtx.fillRect(bgX, bgY, bgW, bgH); }
     outCtx.globalAlpha = 1;
   }
 
-  // ── Draw lines ──────────────────────────────────────────────────────────────
+  // Draw lines
   lines.forEach((lineText, li) => {
     const lx = cx;
     const ly = cy - totalH / 2 + li * lineH + lineH / 2;
-
-    if (cs.highlightEnabled && wordTimes.length && cs.animStyle !== 'pop') {
-      // Word-level highlight: render word-by-word
+    if (cs.highlightEnabled && wordTimes.length) {
       _drawLineWithHighlight(lineText, lx, ly, fs, cs, t, wordTimes, scl);
     } else {
-      // Normal render
       _drawTextLine(lineText, lx, ly, cs, fs, scl, cs.textColor);
     }
   });
@@ -140,7 +137,8 @@ function _drawLineWithHighlight(lineText, lx, ly, fs, cs, t, wordTimes, scl) {
 
 // ── Get segment at time ────────────────────────────────────────────────────────
 function getSegmentAtTime(t) {
-  return captions.find(c => t >= c.start && t < c.end) || null;
+  const allSegs = captionTracks.flatMap(tr => tr.segments);
+  return allSegs.find(c => t >= c.start && t < c.end) || null;
 }
 
 // ── Panel tab switching ────────────────────────────────────────────────────────
@@ -159,51 +157,56 @@ function showCudaModal() {
   if (el) el.style.display = 'flex';
 }
 
+// ── Get checked tracks from the multi-select UI ───────────────────────────────
+function getSelectedTracks() {
+  const checks = document.querySelectorAll('.cc-track-check:checked');
+  return Array.from(checks).map(cb => ({
+    track_idx: +cb.dataset.idx,
+    label:     document.getElementById(`cc-track-label-${cb.dataset.idx}`)?.value
+               || `Track ${+cb.dataset.idx + 1}`,
+  }));
+}
+
+// ── Generate captions (multi-track) ──────────────────────────────────────────
 async function generateCaptions() {
   if (!filename) return toast('Load a video first');
+
+  const selectedTracks = getSelectedTracks();
+  if (!selectedTracks.length) return toast('Select at least one track to transcribe');
+
   const model    = document.getElementById('cc-model').value;
   const language = document.getElementById('cc-lang').value;
   const btn      = document.getElementById('cc-generate-btn');
-  const status   = document.getElementById('cc-status');
 
   btn.disabled = true;
-  setCaptionStatus('running', 'Checking GPU…');
+  setCaptionStatus('running', 'Checking GPU\u2026');
 
-  // ── Pre-flight: confirm NVIDIA GPU + faster-whisper are available ──────────
+  // Pre-flight GPU check
   try {
     const check = await (await fetch(`${API}/whisper_check`)).json();
     if (check.type === 'no-cuda') {
-      setCaptionStatus('error', 'NVIDIA GPU required — see details');
-      btn.disabled = false;
-      showCudaModal();
-      return;
+      setCaptionStatus('error', 'NVIDIA GPU required \u2014 see details');
+      btn.disabled = false; showCudaModal(); return;
     }
     if (check.type === 'none') {
-      setCaptionStatus('error', 'faster-whisper not found — reinstall VertiCut');
-      btn.disabled = false;
-      return;
+      setCaptionStatus('error', 'faster-whisper not found \u2014 reinstall VertiCut');
+      btn.disabled = false; return;
     }
-  } catch {
-    setCaptionStatus('error', 'Could not reach server'); btn.disabled = false; return;
-  }
+  } catch { setCaptionStatus('error', 'Could not reach server'); btn.disabled = false; return; }
 
-  setCaptionStatus('running', 'Starting Whisper…');
+  setCaptionStatus('running', `Starting transcription of ${selectedTracks.length} track(s)\u2026`);
 
   let jobId;
   try {
-    const r = await fetch(`${API}/transcribe`, {
+    const r = await fetch(`${API}/transcribe_multi`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename, model, language: language || null })
+      body: JSON.stringify({ filename, model, language: language || null, tracks: selectedTracks }),
     });
     const d = await r.json();
     if (d.error) { setCaptionStatus('error', d.error); btn.disabled = false; return; }
     jobId = d.job_id;
-  } catch (e) {
-    setCaptionStatus('error', 'Server unreachable'); btn.disabled = false; return;
-  }
-
-  setCaptionStatus('running', `Running Whisper (${model})…`);
+  } catch { setCaptionStatus('error', 'Server unreachable'); btn.disabled = false; return; }
 
   if (captionPollTimer) clearInterval(captionPollTimer);
   captionPollTimer = setInterval(async () => {
@@ -211,32 +214,62 @@ async function generateCaptions() {
     try { pd = await (await fetch(`${API}/transcribe_status/${jobId}`)).json(); }
     catch { return; }
 
-    if (pd.status === 'done') {
+    // Show per-track progress
+    if (pd.tracks) {
+      const summary = pd.tracks.map(t => {
+        if (t.status === 'done')  return `${t.label} \u2713`;
+        if (t.status === 'error') return `${t.label} \u2717`;
+        return `${t.label} \u29f3`;
+      }).join('  \u00b7  ');
+      setCaptionStatus('running', summary);
+    }
+
+    if (pd.status === 'done' || pd.status === 'error') {
       clearInterval(captionPollTimer); captionPollTimer = null;
-      captions = pd.segments || [];
-      captionStyle.enabled = captions.length > 0;
-      setCaptionStatus('done', `✓ ${captions.length} segments`);
       btn.disabled = false;
-      renderSegmentsList();
-      // Auto-enable toggle
+
+      if (!pd.tracks) { setCaptionStatus('error', pd.error || 'Transcription failed'); return; }
+
+      // Merge results into captionTracks — replace same trackIdx, append new
+      const prevLen = captionTracks.length;
+      pd.tracks.forEach((t, i) => {
+        if (t.status !== 'done' || !t.segments?.length) return;
+        const existing = captionTracks.findIndex(ct => ct.trackIdx === t.trackIdx);
+        const colorIdx = existing >= 0 ? existing : captionTracks.length;
+        const color    = CAPTION_TRACK_COLORS[colorIdx % CAPTION_TRACK_COLORS.length];
+        const entry    = { label: t.label, trackIdx: t.trackIdx, color, segments: t.segments };
+        if (existing >= 0) captionTracks[existing] = entry;
+        else captionTracks.push(entry);
+      });
+
+      captionStyle.enabled = captionTracks.some(t => t.segments.length > 0);
+      // Jump to first newly added track so user sees fresh results
+      if (captionTracks.length > prevLen) activeCaptionTab = prevLen;
+      else activeCaptionTab = Math.min(activeCaptionTab, Math.max(0, captionTracks.length - 1));
+
+      const totalSegs = captionTracks.reduce((n, t) => n + t.segments.length, 0);
+      const errCount  = pd.tracks.filter(t => t.status === 'error').length;
+      if (errCount && errCount < pd.tracks.length)
+        setCaptionStatus('done', `\u2713 ${totalSegs} segments (${errCount} track(s) failed)`);
+      else if (errCount === pd.tracks.length)
+        setCaptionStatus('error', pd.error || 'All tracks failed');
+      else
+        setCaptionStatus('done', `\u2713 ${totalSegs} segments across ${captionTracks.length} track(s)`);
+
       const tog = document.getElementById('cc-enabled-toggle');
       if (tog) tog.checked = captionStyle.enabled;
       updateCaptionToggleUI();
-      toast(`Captions generated: ${captions.length} segments`);
-    } else if (pd.status === 'error') {
-      clearInterval(captionPollTimer); captionPollTimer = null;
-      setCaptionStatus('error', pd.error || 'Whisper failed');
-      btn.disabled = false;
+      renderSegmentsList();
+      toast(`Captions generated: ${totalSegs} segments`);
     }
-    // else still running
   }, 1200);
 }
 
 function setCaptionStatus(state, msg) {
   const el = document.getElementById('cc-status');
   if (!el) return;
-  el.textContent  = msg;
-  el.className    = 'cc-status-text cc-status-' + state;
+  el.textContent = msg;
+  el.className   = 'cc-status-text cc-status-' + state;
 }
 
 // ── Captions panel HTML ────────────────────────────────────────────────────────
@@ -281,30 +314,40 @@ function renderCaptionsPanel() {
         </div>
       </div>
       <div class="cc-field" style="width:100%">
-        <label class="cc-label">Audio Track to Transcribe</label>
-        <select class="cc-select" id="cc-track-select" onchange="captionTrackIdx=+this.value">
-          <option value="0">Track 1 (default)</option>
-        </select>
+        <label class="cc-label">Tracks to Transcribe</label>
+        <div class="cc-track-picker" id="cc-track-picker">
+          <div class="cc-track-picker-row">
+            <label class="cc-track-check-wrap">
+              <input type="checkbox" class="cc-track-check" data-idx="0" checked>
+              <span class="cc-track-dot" style="background:var(--accent)"></span>
+            </label>
+            <input class="cc-track-label-input" id="cc-track-label-0" value="Track 1" placeholder="Label…">
+          </div>
+        </div>
       </div>
       <button class="cc-generate-btn" id="cc-generate-btn" onclick="generateCaptions()">
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="2,1 11,6 2,11"/></svg>
         Generate Captions
       </button>
-      <div class="cc-status-text" id="cc-status">Whisper must be installed: <code>pip install openai-whisper</code></div>
+      <div class="cc-status-text" id="cc-status">Select tracks above and click Generate.</div>
     </div>
 
-    <!-- ── Style Controls ──────────────────────────────────────── -->
+    <!-- ── Style Controls ────────────────────── -->
     <div class="cc-section">
       <div class="cc-section-title" style="justify-content:space-between">
         <span style="display:flex;align-items:center;gap:6px">
           <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M1 8h2l4.5-5.5L6 1 1 6.5V8zm7.2-6.2a.7.7 0 0 0 0-1L7.2.8a.7.7 0 0 0-1 0l-.7.7 1.5 1.5.7-.7z"/></svg>
           CAPTION STYLE
+          <span class="cc-track-style-badge" id="cc-track-style-badge"></span>
         </span>
-        <label class="cc-toggle-wrap">
-          <input type="checkbox" id="cc-enabled-toggle" onchange="onCaptionToggle(this.checked)">
-          <span class="cc-toggle-track"></span>
-          <span class="cc-toggle-label" id="cc-toggle-label">OFF</span>
-        </label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="cc-icon-btn" onclick="resetActiveTrackStyle()" title="Reset track to defaults">reset</button>
+          <label class="cc-toggle-wrap">
+            <input type="checkbox" id="cc-enabled-toggle" onchange="onCaptionToggle(this.checked)">
+            <span class="cc-toggle-track"></span>
+            <span class="cc-toggle-label" id="cc-toggle-label">OFF</span>
+          </label>
+        </div>
       </div>
 
       <!-- Typography -->
@@ -456,14 +499,18 @@ function renderCaptionsPanel() {
       </div>
     </div>
 
-    <!-- ── Segments List ────────────────────────────────────────── -->
+    <!-- ── Segments List ────────────────────── -->
     <div class="cc-section cc-segments-section">
-      <div class="cc-section-title" style="justify-content:space-between">
-        <span>SEGMENTS <span class="cc-seg-count" id="cc-seg-count"></span></span>
-        <button class="cc-icon-btn" onclick="clearCaptions()" title="Clear all">✕ clear</button>
+      <div class="cc-section-title" style="justify-content:space-between;align-items:center">
+        <span>SEGMENTS</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="cc-icon-btn" onclick="addManualSegment()" title="Add segment manually">+ add</button>
+          <button class="cc-icon-btn" onclick="clearCaptions()" title="Clear all">✕ clear</button>
+        </div>
       </div>
+      <div class="cc-track-tabs" id="cc-track-tabs"></div>
       <div class="cc-segments-list" id="cc-segments-list">
-        <div class="cc-empty-state">Generate captions to see segments here.</div>
+        <div class="cc-empty-state">Generate captions or click “+ add” to create segments.</div>
       </div>
     </div>
   `;
@@ -474,7 +521,7 @@ function renderCaptionsPanel() {
 
 // ── Sync all UI controls to captionStyle ──────────────────────────────────────
 function syncCaptionControls() {
-  const cs = captionStyle;
+  const cs = resolvedTrackStyle();
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
   const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   const setChecked = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val; };
@@ -529,14 +576,49 @@ function updateCaptionToggleUI() {
   if (lbl2) lbl2.querySelector('.cc-badge') && (lbl2.querySelector('.cc-badge').style.display = captionStyle.enabled ? 'inline' : 'none');
 }
 
+// ── Active track style accessor ──────────────────────────────────────────────
+// Returns the style object to read/write for current track.
+// Falls back to global captionStyle if no tracks yet (for global settings like enabled).
+function activeTrackStyle() {
+  const track = captionTracks[activeCaptionTab];
+  if (!track) return captionStyle;
+  if (!track.style) track.style = defaultCaptionStyle();
+  return track.style;
+}
+
+// Resolved style: global defaults merged with active track overrides
+function resolvedTrackStyle() {
+  return Object.assign({}, captionStyle, activeTrackStyle());
+}
+
 function onCaptionToggle(val) {
   captionStyle.enabled = val;
   updateCaptionToggleUI();
 }
 
+function resetActiveTrackStyle() {
+  const track = captionTracks[activeCaptionTab];
+  if (track) { track.style = defaultCaptionStyle(); }
+  syncCaptionControls();
+  updateTrackStyleBadge();
+}
+
+function updateTrackStyleBadge() {
+  const el = document.getElementById('cc-track-style-badge');
+  if (!el) return;
+  const track = captionTracks[activeCaptionTab];
+  if (track && track.style) {
+    el.textContent = track.label || `Track ${activeCaptionTab + 1}`;
+    el.style.display = 'inline';
+  } else {
+    el.textContent = '';
+    el.style.display = 'none';
+  }
+}
+
 function updateCaptionStyle(key, value) {
-  captionStyle[key] = value;
-  // Specific UI sync side-effects
+  activeTrackStyle()[key] = value;
+  updateTrackStyleBadge();
   if (key === 'textColor') {
     const el = document.getElementById('cc-text-color-hex');
     if (el) el.textContent = value.toUpperCase();
@@ -546,7 +628,7 @@ function updateCaptionStyle(key, value) {
 }
 
 function updateBgRowOpacity() {
-  const hasBg = captionStyle.bgOpacity > 0;
+  const hasBg = resolvedTrackStyle().bgOpacity > 0;
   ['cc-bg-radius-row','cc-bg-pad-row'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.opacity = hasBg ? '1' : '0.4';
@@ -554,71 +636,202 @@ function updateBgRowOpacity() {
 }
 
 function setCaptionWeight(w) {
-  captionStyle.fontWeight = w;
+  activeTrackStyle().fontWeight = w;
   updateWeightChips();
 }
 function updateWeightChips() {
+  const cs = resolvedTrackStyle();
   ['normal','bold','black'].forEach(w => {
     const el = document.getElementById('cc-w-' + w);
-    if (el) el.classList.toggle('active', captionStyle.fontWeight === w);
+    if (el) el.classList.toggle('active', cs.fontWeight === w);
   });
 }
 
 function toggleCaptionItalic() {
-  captionStyle.fontItalic = !captionStyle.fontItalic;
+  const ts = activeTrackStyle();
+  ts.fontItalic = !ts.fontItalic;
   const el = document.getElementById('cc-italic-btn');
-  if (el) el.classList.toggle('active', captionStyle.fontItalic);
+  if (el) el.classList.toggle('active', ts.fontItalic);
 }
 function toggleCaptionCaps() {
-  captionStyle.allCaps = !captionStyle.allCaps;
+  const ts = activeTrackStyle();
+  ts.allCaps = !ts.allCaps;
   const el = document.getElementById('cc-caps-btn');
-  if (el) el.classList.toggle('active', captionStyle.allCaps);
+  if (el) el.classList.toggle('active', ts.allCaps);
 }
 function toggleWordHighlight(val) {
-  captionStyle.highlightEnabled = val;
+  activeTrackStyle().highlightEnabled = val;
 }
 function updateAlignChips() {
+  const cs = resolvedTrackStyle();
   ['left','center','right'].forEach(a => {
     const el = document.getElementById('cc-align-' + a);
-    if (el) el.classList.toggle('active', captionStyle.textAlign === a);
+    if (el) el.classList.toggle('active', cs.textAlign === a);
   });
 }
 function updateFlagChips() {
+  const cs = resolvedTrackStyle();
   const iEl = document.getElementById('cc-italic-btn');
-  if (iEl) iEl.classList.toggle('active', captionStyle.fontItalic);
+  if (iEl) iEl.classList.toggle('active', cs.fontItalic);
   const cEl = document.getElementById('cc-caps-btn');
-  if (cEl) cEl.classList.toggle('active', captionStyle.allCaps);
+  if (cEl) cEl.classList.toggle('active', cs.allCaps);
 }
 
-// ── Segments list render ───────────────────────────────────────────────────────
+// ── Track tabs render ────────────────────────────────────────────────────────
+function renderTrackTabs() {
+  const el = document.getElementById('cc-track-tabs');
+  if (!el) return;
+  if (!captionTracks.length) { el.innerHTML = ''; return; }
+  el.innerHTML = captionTracks.map((t, i) => `
+    <button class="cc-track-tab ${i === activeCaptionTab ? 'active' : ''}"
+            style="--tab-color:${t.color}"
+            onclick="setActiveCaptionTab(${i})">
+      <span class="cc-track-tab-dot" style="background:${t.color}"></span>
+      ${escapeHtml(t.label)}
+      <span class="cc-track-tab-count">${t.segments.length}</span>
+    </button>
+  `).join('');
+}
+
+function setActiveCaptionTab(i) {
+  activeCaptionTab = i;
+  renderTrackTabs();
+  renderSegmentsList();
+  syncCaptionControls();
+  updateTrackStyleBadge();
+}
+
+// ── Segments list render ──────────────────────────────────────────────────────
 function renderSegmentsList() {
+  renderTrackTabs();
   const container = document.getElementById('cc-segments-list');
-  const countEl   = document.getElementById('cc-seg-count');
   if (!container) return;
 
-  if (countEl) countEl.textContent = captions.length ? `(${captions.length})` : '';
+  const track = captionTracks[activeCaptionTab];
+  const segs  = track?.segments || [];
+  const color = track?.color || 'var(--accent)';
 
-  if (!captions.length) {
-    container.innerHTML = '<div class="cc-empty-state">No segments yet. Generate captions above.</div>';
+  if (!segs.length) {
+    container.innerHTML = '<div class="cc-empty-state">No segments yet. Generate captions or click \u201c+ add\u201d.</div>';
     return;
   }
 
-  container.innerHTML = captions.map((seg, i) => `
-    <div class="cc-segment" id="cc-seg-${i}">
+  container.innerHTML = segs.map((seg, i) => {
+    const hasOverride = !!seg.styleOverride;
+    const ov = seg.styleOverride || {};
+    const trackStyle = Object.assign({}, captionStyle, track?.style || {});
+
+    // Mini inline color/position override controls shown when expanded
+    const overridePanel = hasOverride ? `
+      <div class="cc-seg-override">
+        <div class="cc-seg-override-row">
+          <span class="cc-seg-ov-label">Text</span>
+          <label class="cc-color-swatch cc-swatch-sm">
+            <input type="color" value="${ov.textColor || trackStyle.textColor}"
+                   oninput="setSegmentOverride(${i},'textColor',this.value)">
+          </label>
+          <span class="cc-seg-ov-label" style="margin-left:8px">Outline</span>
+          <label class="cc-color-swatch cc-swatch-sm">
+            <input type="color" value="${ov.strokeColor || trackStyle.strokeColor}"
+                   oninput="setSegmentOverride(${i},'strokeColor',this.value)">
+          </label>
+        </div>
+        <div class="cc-seg-override-row">
+          <span class="cc-seg-ov-label">Pos Y</span>
+          <input type="range" class="cc-slider" min="0" max="100" step="0.5"
+                 value="${ov.positionY ?? trackStyle.positionY}"
+                 oninput="setSegmentOverride(${i},'positionY',+this.value);this.nextElementSibling.textContent=Math.round(this.value)+'%'">
+          <span class="cc-slider-val">${Math.round(ov.positionY ?? trackStyle.positionY)}%</span>
+        </div>
+        <div class="cc-seg-override-row">
+          <span class="cc-seg-ov-label">Pos X</span>
+          <input type="range" class="cc-slider" min="0" max="100" step="0.5"
+                 value="${ov.positionX ?? trackStyle.positionX}"
+                 oninput="setSegmentOverride(${i},'positionX',+this.value);this.nextElementSibling.textContent=Math.round(this.value)+'%'">
+          <span class="cc-slider-val">${Math.round(ov.positionX ?? trackStyle.positionX)}%</span>
+        </div>
+        <div class="cc-seg-override-row">
+          <span class="cc-seg-ov-label">Size</span>
+          <input type="range" class="cc-slider" min="20" max="180" step="1"
+                 value="${ov.fontSize ?? trackStyle.fontSize}"
+                 oninput="setSegmentOverride(${i},'fontSize',+this.value);this.nextElementSibling.textContent=this.value+'px'">
+          <span class="cc-slider-val">${ov.fontSize ?? trackStyle.fontSize}px</span>
+        </div>
+        <button class="cc-seg-reset-ov" onclick="clearSegmentOverride(${i})">Remove overrides</button>
+      </div>` : '';
+
+    return `
+    <div class="cc-segment ${hasOverride ? 'cc-seg-has-override' : ''}" id="cc-seg-${i}" style="--seg-color:${color}">
       <div class="cc-seg-times">
         <input class="cc-time-input" value="${fmtCapTime(seg.start)}"
                onchange="updateSegmentTime(${i},'start',this.value)" title="Start time">
-        <span class="cc-seg-arrow">→</span>
+        <span class="cc-seg-arrow">\u2192</span>
         <input class="cc-time-input" value="${fmtCapTime(seg.end)}"
                onchange="updateSegmentTime(${i},'end',this.value)" title="End time">
-        <button class="cc-seg-del" onclick="deleteSegment(${i})" title="Delete">✕</button>
+        <button class="cc-seg-override-btn ${hasOverride ? 'active' : ''}"
+                onclick="toggleSegmentOverride(${i})" title="Customize this segment">\u270e</button>
+        <button class="cc-seg-del" onclick="deleteSegment(${i})" title="Delete">\u2715</button>
       </div>
       <textarea class="cc-seg-text" rows="2"
                 onchange="updateSegmentText(${i},this.value)"
                 oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
       >${escapeHtml(seg.text)}</textarea>
-    </div>
-  `).join('');
+      ${overridePanel}
+    </div>`;
+  }).join('');
+}
+
+// ── Per-segment style overrides ───────────────────────────────────────────────
+function toggleSegmentOverride(i) {
+  const segs = captionTracks[activeCaptionTab]?.segments;
+  if (!segs?.[i]) return;
+  if (segs[i].styleOverride) {
+    delete segs[i].styleOverride;
+  } else {
+    segs[i].styleOverride = {}; // empty = inherits all from track
+  }
+  renderSegmentsList();
+}
+
+function setSegmentOverride(i, key, value) {
+  const segs = captionTracks[activeCaptionTab]?.segments;
+  if (!segs?.[i]) return;
+  if (!segs[i].styleOverride) segs[i].styleOverride = {};
+  segs[i].styleOverride[key] = value;
+}
+
+function clearSegmentOverride(i) {
+  const segs = captionTracks[activeCaptionTab]?.segments;
+  if (segs?.[i]) delete segs[i].styleOverride;
+  renderSegmentsList();
+}
+
+// ── Manual segment add ────────────────────────────────────────────────────────
+function addManualSegment() {
+  if (!captionTracks.length) {
+    captionTracks.push({
+      label:    'Manual',
+      trackIdx: -1,
+      color:    CAPTION_TRACK_COLORS[0],
+      segments: [],
+    });
+    activeCaptionTab = 0;
+  }
+  const startTime = (typeof currentTime !== 'undefined' ? currentTime : 0);
+  const endTime   = startTime + 3;
+  const track = captionTracks[activeCaptionTab];
+  track.segments.push({ start: startTime, end: endTime, text: '', words: [] });
+  track.segments.sort((a, b) => a.start - b.start);
+  captionStyle.enabled = true;
+  const tog = document.getElementById('cc-enabled-toggle');
+  if (tog) tog.checked = true;
+  updateCaptionToggleUI();
+  renderSegmentsList();
+  setTimeout(() => {
+    const newIdx = track.segments.findIndex(s => s.start === startTime && s.text === '');
+    const ta = document.querySelector(`#cc-seg-${newIdx} .cc-seg-text`);
+    if (ta) { ta.focus(); ta.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+  }, 50);
 }
 
 function fmtCapTime(sec) {
@@ -639,19 +852,24 @@ function escapeHtml(s) {
 }
 
 function updateSegmentTime(i, key, val) {
-  if (!captions[i]) return;
-  captions[i][key] = parseCapTime(val);
+  const segs = captionTracks[activeCaptionTab]?.segments;
+  if (!segs || !segs[i]) return;
+  segs[i][key] = parseCapTime(val);
 }
 function updateSegmentText(i, val) {
-  if (!captions[i]) return;
-  captions[i].text = val;
+  const segs = captionTracks[activeCaptionTab]?.segments;
+  if (!segs || !segs[i]) return;
+  segs[i].text = val;
 }
 function deleteSegment(i) {
-  captions.splice(i, 1);
+  const segs = captionTracks[activeCaptionTab]?.segments;
+  if (!segs) return;
+  segs.splice(i, 1);
   renderSegmentsList();
 }
 function clearCaptions() {
-  captions = [];
+  captionTracks = [];
+  activeCaptionTab = 0;
   captionStyle.enabled = false;
   const tog = document.getElementById('cc-enabled-toggle');
   if (tog) tog.checked = false;
@@ -662,21 +880,57 @@ function clearCaptions() {
 
 // ── Populate the track selector from loaded audioTracks ─────────────────────────
 function updateCaptionTrackSelector() {
-  const sel = document.getElementById('cc-track-select');
-  if (!sel) return;
+  const picker = document.getElementById('cc-track-picker');
+  if (!picker) return;
   const tracks = (typeof audioTracks !== 'undefined') ? audioTracks : [];
+
+  // Preserve any labels + checked states the user has already set
+  const saved = {};
+  picker.querySelectorAll('.cc-track-check').forEach(cb => {
+    const idx = cb.dataset.idx;
+    const labelEl = document.getElementById(`cc-track-label-${idx}`);
+    saved[idx] = { checked: cb.checked, label: labelEl ? labelEl.value : null };
+  });
+  const hadEntries = Object.keys(saved).length > 0;
+
   if (!tracks.length) {
-    sel.innerHTML = '<option value="0">Track 1 (default)</option>';
-    captionTrackIdx = 0;
+    // Only reset to default if picker was previously empty (fresh load / new video)
+    if (!hadEntries) {
+      picker.innerHTML = `
+        <div class="cc-track-picker-row">
+          <label class="cc-track-check-wrap">
+            <input type="checkbox" class="cc-track-check" data-idx="0" checked>
+            <span class="cc-track-dot" style="background:${CAPTION_TRACK_COLORS[0]}"></span>
+          </label>
+          <input class="cc-track-label-input" id="cc-track-label-0" value="Track 1" placeholder="Label…">
+        </div>`;
+    }
     return;
   }
-  sel.innerHTML = tracks.map(t => {
-    const label = t.label || `Track ${t.idx + 1}`;
+
+  // Only rebuild if the track count changed (new video loaded)
+  const currentCount = picker.querySelectorAll('.cc-track-check').length;
+  if (hadEntries && currentCount === tracks.length) return; // same tracks — don't touch user edits
+
+  // Full rebuild (new video with different track count)
+  picker.innerHTML = tracks.map((t, i) => {
+    const defaultLabel = `Track ${t.idx + 1}`;
+    const prev  = saved[String(t.idx)];
+    const label = prev?.label ?? defaultLabel;
+    const chk   = prev ? (prev.checked ? 'checked' : '') : (i === 0 ? 'checked' : '');
     const detail = [t.codec, t.layout, t.channels ? `${t.channels}ch` : ''].filter(Boolean).join(' · ');
-    return `<option value="${t.idx}">${label}${detail ? ' — ' + detail : ''}</option>`;
+    const color  = CAPTION_TRACK_COLORS[i % CAPTION_TRACK_COLORS.length];
+    return `
+      <div class="cc-track-picker-row">
+        <label class="cc-track-check-wrap" title="${detail}">
+          <input type="checkbox" class="cc-track-check" data-idx="${t.idx}" ${chk}>
+          <span class="cc-track-dot" style="background:${color}"></span>
+        </label>
+        <input class="cc-track-label-input" id="cc-track-label-${t.idx}"
+               value="${label.replace(/"/g,'&quot;')}" placeholder="Label…">
+        ${detail ? `<span class="cc-track-detail">${detail}</span>` : ''}
+      </div>`;
   }).join('');
-  if (captionTrackIdx < tracks.length) sel.value = captionTrackIdx;
-  else { captionTrackIdx = 0; sel.value = 0; }
 }
 
 // ── Initialize captions panel on load ─────────────────────────────────────────

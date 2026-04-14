@@ -1,10 +1,21 @@
-Place faster-whisper.exe here to enable captions.
+Image: china.jpg
+Released under a creative commons license. [1]
+Attribution: Some rights reserved by danielbuechele [2]
+Retrieved 21st August, 2011 from [3] by Robert Layton
 
-Download from:
-  https://github.com/Purfview/whisper-standalone-win/releases
+[1] https://creativecommons.org/licenses/by/2.0/
+[2] https://www.flickr.com/photos/danielbuechele/
+[3] https://www.flickr.com/photos/danielbuechele/6061409035/sizes/z/in/photostream/
 
-Download the "Faster-Whisper-XXL" release, extract it, and copy:
-  faster-whisper.exe  →  this folder
 
-Whisper model weights are downloaded automatically on first use
-and cached in your user profile (~/.cache/huggingface/hub).
+Image: flower.jpg
+Released under a creative commons license. [1]
+Attribution: Some rights reserved by danielbuechele [2]
+Retrieved 21st August, 2011 from [3] by Robert Layton
+
+[1] https://creativecommons.org/licenses/by/2.0/
+[2] https://www.flickr.com/photos/vultilion/
+[3] https://www.flickr.com/photos/vultilion/6056698931/sizes/z/in/photostream/
+
+
+

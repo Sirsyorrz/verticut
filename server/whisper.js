@@ -2,6 +2,8 @@
 const { spawn, spawnSync } = require('child_process');
 const path   = require('path');
 const fs     = require('fs');
+const https  = require('https');
+const os     = require('os');
 const { v4: uuidv4 } = require('uuid');
 const { ffmpegPath } = require('./ffmpeg');
 
@@ -22,25 +24,17 @@ function cudaEnv() {
   return { ...process.env, LD_LIBRARY_PATH: merged, LD_PRELOAD: preload };
 }
 
-// ── Resolve the resources/ dir whether in asar or dev ─────────────────────────
-function resourcesDir() {
-  // In packaged app: process.resourcesPath is set by Electron
-  if (process.resourcesPath) return process.resourcesPath;
-  // Dev: two levels up from server/whisper.js → project root
-  return path.resolve(__dirname, '..');
-}
-
 // ── Locate the Purfview faster-whisper standalone exe ─────────────────────────
-function findWhisperExe() {
+// whisperDir = userData/whisper (runtime download location)
+function findWhisperExe(whisperDir) {
   // The bundled exe is a Windows binary — never attempt to run it on Linux/macOS
   if (process.platform !== 'win32') return null;
 
   const candidates = [
-    path.join(resourcesDir(), 'whisper', 'faster-whisper.exe'), // packaged Windows
-    path.join(resourcesDir(), 'whisper', 'faster-whisper'),      // packaged Linux
-    path.join(__dirname, '..', 'resources', 'whisper', 'faster-whisper.exe'), // dev Windows
-    path.join(__dirname, '..', 'resources', 'whisper', 'faster-whisper'),     // dev Linux
-  ];
+    whisperDir && path.join(whisperDir, 'faster-whisper.exe'), // downloaded to userData
+    path.join(__dirname, '..', 'resources', 'whisper', 'faster-whisper.exe'), // dev fallback
+  ].filter(Boolean);
+
   for (const p of candidates) {
     if (fs.existsSync(p)) return p;
   }
@@ -52,18 +46,31 @@ const FASTER_WHISPER_SCRIPT = `
 import sys, json
 from faster_whisper import WhisperModel
 
-audio_path = sys.argv[1]
-model_name = sys.argv[2]
-language   = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] != 'auto' else None
+audio_path     = sys.argv[1]
+model_name     = sys.argv[2]
+language       = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] != 'auto' else None
+device         = sys.argv[4] if len(sys.argv) > 4 else 'cpu'
+compute_type   = sys.argv[5] if len(sys.argv) > 5 else 'int8'
+initial_prompt = sys.argv[6] if len(sys.argv) > 6 and sys.argv[6] else None
+vad_silence_ms = int(sys.argv[7]) if len(sys.argv) > 7 else 300
+temperature    = [float(t) for t in sys.argv[8].split(',')] if len(sys.argv) > 8 else 0
+comp_threshold = float(sys.argv[9])  if len(sys.argv) > 9  else 2.4
+no_speech_thr  = float(sys.argv[10]) if len(sys.argv) > 10 else 0.6
 
-model = WhisperModel(model_name, device='cuda', compute_type='float16')
+model = WhisperModel(model_name, device=device, compute_type=compute_type)
 
 segments, info = model.transcribe(
     audio_path,
     word_timestamps=True,
     vad_filter=True,
-    vad_parameters={"min_silence_duration_ms": 500},
+    vad_parameters={"min_silence_duration_ms": vad_silence_ms},
     language=language,
+    beam_size=5,
+    temperature=temperature,
+    condition_on_previous_text=False,
+    compression_ratio_threshold=comp_threshold,
+    no_speech_threshold=no_speech_thr,
+    initial_prompt=initial_prompt,
 )
 
 result = []
@@ -98,35 +105,61 @@ function hasFasterWhisperPython(python) {
   return !r.error && r.status === 0;
 }
 
-// ── Check NVIDIA GPU / CUDA is present on this machine ───────────────────────
-function checkCuda() {
-  // nvidia-smi is the most reliable cross-platform signal for an NVIDIA GPU
+// ── Detect GPU type: nvidia, amd, or cpu ─────────────────────────────────────
+function detectGpu() {
+  // Check NVIDIA first via nvidia-smi
   for (const cmd of ['nvidia-smi', 'C:\\Windows\\System32\\nvidia-smi.exe']) {
     try {
       const r = spawnSync(cmd, [], { timeout: 6000, stdio: 'pipe' });
-      if (!r.error && r.status === 0) return { available: true };
+      if (!r.error && r.status === 0) return 'nvidia';
     } catch {}
   }
-  return { available: false };
+
+  // Check AMD via rocminfo (Linux) or wmic on Windows
+  if (process.platform === 'win32') {
+    try {
+      const r = spawnSync('wmic', ['path', 'win32_VideoController', 'get', 'name'], { timeout: 6000, stdio: 'pipe' });
+      if (!r.error && r.status === 0) {
+        const out = (r.stdout || '').toString().toLowerCase();
+        if (out.includes('amd') || out.includes('radeon')) return 'amd';
+      }
+    } catch {}
+  } else {
+    try {
+      const r = spawnSync('rocminfo', [], { timeout: 6000, stdio: 'pipe' });
+      if (!r.error && r.status === 0) return 'amd';
+    } catch {}
+  }
+
+  return 'cpu';
+}
+
+// ── Map GPU type to faster-whisper device + compute_type ─────────────────────
+function getDeviceArgs(gpu) {
+  if (gpu === 'nvidia') return { device: 'cuda',  computeType: 'float16' };
+  // AMD on Windows: ROCm isn't supported by faster-whisper; fall back to CPU
+  // AMD on Linux:   ROCm may work but we stay safe with CPU
+  return                       { device: 'cpu',   computeType: 'int8' };
 }
 
 // ── Determine transcription backend ───────────────────────────────────────────
-//   Returns { type: 'exe', exePath } | { type: 'python', python } | { type: 'none', hint } | { type: 'no-cuda' }
-function checkWhisper() {
-  // 1. Require NVIDIA GPU
-  const cuda = checkCuda();
-  if (!cuda.available) return { type: 'no-cuda' };
+//   Returns { type: 'exe', exePath, device, computeType }
+//         | { type: 'python', python, device, computeType }
+//         | { type: 'none' }
+function checkWhisper(whisperDir) {
+  const gpu        = detectGpu();
+  const deviceArgs = getDeviceArgs(gpu);
 
-  // 2. Prefer the bundled standalone exe (ships with the Windows build)
-  const exe = findWhisperExe();
-  if (exe) return { type: 'exe', exePath: exe };
+  // 1. Prefer the downloaded/bundled standalone exe
+  const exe = findWhisperExe(whisperDir);
+  if (exe) return { type: 'exe', exePath: exe, gpu, ...deviceArgs };
 
-  // 3. Fall back to system Python + faster-whisper (dev / Linux)
+  // 2. Fall back to system Python + faster-whisper (dev / Linux)
   const python = findPython();
-  if (python && hasFasterWhisperPython(python)) return { type: 'python', python };
+  if (python && hasFasterWhisperPython(python)) return { type: 'python', python, gpu, ...deviceArgs };
 
-  // 4. Nothing found
-  return { type: 'none' };
+  // 3. Not installed yet
+  return { type: 'not-installed' };
 }
 
 // ── Parse JSON file produced by Purfview exe ──────────────────────────────────
@@ -146,7 +179,54 @@ function parseExeJson(jsonFile) {
 }
 
 // ── Extract audio + transcribe, return segments ────────────────────────────────
-async function transcribeVideo(filePath, model = 'base', language = null, outputsDir, trackIdx = 0) {
+// ── Per-mode transcription settings ─────────────────────────────────────────
+// multiSpeaker = true when >1 track is being transcribed (back-and-forth convo)
+function transcriptionSettings(multiSpeaker) {
+  if (multiSpeaker) return {
+    vad_min_silence_duration_ms: '500',  // longer gaps between speakers in conversation
+    beam_size:                   '5',
+    temperature:                 '0,0.2',  // small fallback for overlapping/unclear speech
+    condition_on_previous_text:  'False',
+    compression_ratio_threshold: '2.8',    // looser — overlapping voices look repetitive
+    no_speech_threshold:         '0.5',    // looser — quieter speakers score lower
+  };
+  // Single speaker / solo commentary
+  return {
+    vad_min_silence_duration_ms: '300',
+    beam_size:                   '5',
+    temperature:                 '0',
+    condition_on_previous_text:  'False',
+    compression_ratio_threshold: '2.4',
+    no_speech_threshold:         '0.6',
+  };
+}
+
+// ── Merge diarization dump with whisper segments ─────────────────────────────
+// Dump format (one line per speaker turn): SPEAKER_XX  startSec  endSec
+function mergeDiarization(segments, dumpPath) {
+  if (!fs.existsSync(dumpPath)) return segments;
+  const dump = fs.readFileSync(dumpPath, 'utf8').trim().split('\n')
+    .filter(Boolean)
+    .map(line => {
+      const parts = line.trim().split(/\s+/);
+      return { speaker: parts[0], start: +parts[1], end: +parts[2] };
+    })
+    .filter(d => d.speaker && !isNaN(d.start) && !isNaN(d.end));
+
+  return segments.map(seg => {
+    const mid = (seg.start + seg.end) / 2;
+    const match = dump.find(d => mid >= d.start && mid <= d.end)
+      // fallback: nearest speaker window if midpoint falls in a gap
+      ?? dump.reduce((best, d) => {
+        const dist = Math.min(Math.abs(mid - d.start), Math.abs(mid - d.end));
+        const bestDist = best ? Math.min(Math.abs(mid - best.start), Math.abs(mid - best.end)) : Infinity;
+        return dist < bestDist ? d : best;
+      }, null);
+    return { ...seg, speaker: match?.speaker ?? 'SPEAKER_00' };
+  });
+}
+
+async function transcribeVideo(filePath, model = 'base', language = null, outputsDir, trackIdx = 0, whisperDir = null, initialPrompt = null, multiSpeaker = false, diarize = false, numSpeakers = null) {
   const tmpId     = uuidv4();
   const audioPath = path.join(outputsDir, `${tmpId}_audio.wav`);
 
@@ -167,27 +247,41 @@ async function transcribeVideo(filePath, model = 'base', language = null, output
     });
 
     // 2. Detect backend
-    const wc = checkWhisper();
-    if (wc.type === 'no-cuda') throw new Error('NO_CUDA');
-    if (wc.type === 'none')    throw new Error('NO_WHISPER');
+    const wc = checkWhisper(whisperDir);
+    if (wc.type === 'not-installed') throw new Error('NO_WHISPER');
 
     // ── 2a. Purfview standalone exe ──────────────────────────────────────────
     if (wc.type === 'exe') {
       const whisperOutDir = path.join(outputsDir, `whisper_${tmpId}`);
       fs.mkdirSync(whisperOutDir, { recursive: true });
 
+      const s = transcriptionSettings(multiSpeaker);
       const args = [
         audioPath,
-        '--model',                       model,
-        '--output_format',               'json',
-        '--output_dir',                  whisperOutDir,
-        '--word_timestamps',             'True',
-        '--vad_filter',                  'True',
-        '--vad_min_silence_duration_ms', '500',
-        '--device',                      'cuda',
-        '--compute_type',                'float16',
+        '--model',                        model,
+        '--output_format',                'json',
+        '--output_dir',                   whisperOutDir,
+        '--word_timestamps',              'True',
+        '--vad_filter',                   'True',
+        '--vad_min_silence_duration_ms',  s.vad_min_silence_duration_ms,
+        '--device',                       wc.device,
+        '--compute_type',                 wc.computeType,
+        '--beam_size',                    s.beam_size,
+        '--temperature',                  s.temperature,
+        '--condition_on_previous_text',   s.condition_on_previous_text,
+        '--compression_ratio_threshold',  s.compression_ratio_threshold,
+        '--no_speech_threshold',          s.no_speech_threshold,
       ];
       if (language && language !== 'auto') args.push('--language', language);
+      if (initialPrompt) args.push('--initial_prompt', initialPrompt);
+      if (diarize) {
+        // pyannote_v3.1 requires CUDA; pyannote_v3.0 works on CPU
+        const diarizeModel = wc.device === 'cuda' ? 'pyannote_v3.1' : 'pyannote_v3.0';
+        args.push('--diarize', diarizeModel, '--diarize_dump');
+        if (numSpeakers) {
+          args.push('--min_speakers', String(numSpeakers), '--max_speakers', String(numSpeakers));
+        }
+      }
 
       await new Promise((resolve, reject) => {
         const proc = spawn(wc.exePath, args, { stdio: ['ignore', 'pipe', 'pipe'], env: cudaEnv() });
@@ -200,11 +294,24 @@ async function transcribeVideo(filePath, model = 'base', language = null, output
         proc.on('error', e => reject(new Error(`Cannot start faster-whisper.exe: ${e.message}`)));
       });
 
-      const baseName = path.basename(audioPath, path.extname(audioPath));
-      const jsonFile  = path.join(whisperOutDir, `${baseName}.json`);
-      if (!fs.existsSync(jsonFile)) throw new Error('faster-whisper produced no output JSON');
+      // Find output files — Purfview uses the input file's basename, not necessarily ours
+      const allFiles  = fs.readdirSync(whisperOutDir);
+      const jsonName  = allFiles.find(f => f.endsWith('.json'));
+      const dumpName  = allFiles.find(f => f.endsWith('.dump'));
+      if (!jsonName) throw new Error('faster-whisper produced no output JSON');
 
-      const segments = parseExeJson(jsonFile);
+      const jsonFile = path.join(whisperOutDir, jsonName);
+      const dumpFile = dumpName ? path.join(whisperOutDir, dumpName) : null;
+
+      let segments = parseExeJson(jsonFile);
+
+      if (diarize) {
+        if (dumpFile) segments = mergeDiarization(segments, dumpFile);
+        const speakers = [...new Set(segments.map(s => s.speaker).filter(Boolean))].sort();
+        try { fs.rmSync(whisperOutDir, { recursive: true }); } catch {}
+        return { segments, speakers: speakers.length > 1 ? speakers : [] };
+      }
+
       try { fs.rmSync(whisperOutDir, { recursive: true }); } catch {}
       return segments;
     }
@@ -213,8 +320,13 @@ async function transcribeVideo(filePath, model = 'base', language = null, output
     const scriptPath = path.join(outputsDir, `${tmpId}_fw.py`);
     fs.writeFileSync(scriptPath, FASTER_WHISPER_SCRIPT, 'utf8');
 
-    const pyArgs = [scriptPath, audioPath, model];
-    if (language && language !== 'auto') pyArgs.push(language);
+    const s = transcriptionSettings(multiSpeaker);
+    const pyArgs = [
+      scriptPath, audioPath, model, language || 'auto',
+      wc.device, wc.computeType, initialPrompt || '',
+      s.vad_min_silence_duration_ms, s.temperature,
+      s.compression_ratio_threshold, s.no_speech_threshold,
+    ];
 
     return await new Promise((resolve, reject) => {
       const proc = spawn(wc.python, pyArgs, { stdio: ['ignore', 'pipe', 'pipe'], env: cudaEnv() });
@@ -390,4 +502,87 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   fs.writeFileSync(outputPath, ass, 'utf8');
 }
 
-module.exports = { checkWhisper, transcribeVideo, generateASSFile, generateMultiTrackASSFile };
+// ── Runtime whisper download ───────────────────────────────────────────────────────────
+const RELEASE_API = 'https://api.github.com/repos/Purfview/whisper-standalone-win/releases/tags/Faster-Whisper-XXL';
+
+let _dlStatus = { state: 'idle', pct: 0, message: '' };
+
+function getWhisperDownloadStatus() { return { ..._dlStatus }; }
+
+function httpsGet(url) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { headers: { 'User-Agent': 'verticut' } }, res => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        return httpsGet(res.headers.location).then(resolve).catch(reject);
+      }
+      resolve(res);
+    });
+    req.on('error', reject);
+  });
+}
+
+async function downloadWhisper(whisperDir) {
+  if (_dlStatus.state === 'downloading') return; // already in progress
+  _dlStatus = { state: 'downloading', pct: 0, message: 'Fetching release info…' };
+
+  try {
+    fs.mkdirSync(whisperDir, { recursive: true });
+
+    // 1. Fetch release metadata
+    const apiRes = await httpsGet(RELEASE_API);
+    let body = '';
+    for await (const chunk of apiRes) body += chunk;
+    const release = JSON.parse(body);
+
+    // 2. Find the Windows .7z asset
+    const asset = release.assets
+      .filter(a => a.name.toLowerCase().includes('windows') && a.name.endsWith('.7z'))
+      .sort((a, b) => b.name.localeCompare(a.name, undefined, { numeric: true }))[0];
+
+    if (!asset) throw new Error('No Windows .7z asset found in release');
+    _dlStatus.message = `Downloading ${asset.name} (${(asset.size / 1e6).toFixed(0)} MB)…`;
+
+    // 3. Download archive
+    const archivePath = path.join(os.tmpdir(), asset.name);
+    await new Promise(async (resolve, reject) => {
+      const res = await httpsGet(asset.browser_download_url);
+      if (res.statusCode !== 200) return reject(new Error(`HTTP ${res.statusCode}`));
+      const total = parseInt(res.headers['content-length'] || '0', 10);
+      let received = 0;
+      const out = fs.createWriteStream(archivePath);
+      res.on('data', chunk => {
+        received += chunk.length;
+        if (total) _dlStatus.pct = Math.floor((received / total) * 100);
+      });
+      res.pipe(out);
+      out.on('finish', resolve);
+      out.on('error', reject);
+      res.on('error', reject);
+    });
+
+    // 4. Extract with 7zip-bin (already in node_modules from build scripts)
+    _dlStatus = { state: 'downloading', pct: 100, message: 'Extracting…' };
+    let path7za;
+    try { path7za = require('7zip-bin').path7za; } catch {
+      throw new Error('7zip-bin not available — cannot extract whisper archive');
+    }
+    const result = spawnSync(path7za, ['e', archivePath, `-o${whisperDir}`, '-y'], { stdio: 'pipe' });
+    if (result.status !== 0) throw new Error('7z extraction failed');
+
+    // 5. Rename exe if needed
+    const exePath = path.join(whisperDir, 'faster-whisper.exe');
+    if (!fs.existsSync(exePath)) {
+      const found = fs.readdirSync(whisperDir).find(f => f.toLowerCase().endsWith('.exe'));
+      if (found) fs.renameSync(path.join(whisperDir, found), exePath);
+      else throw new Error('No .exe found after extraction');
+    }
+
+    try { fs.unlinkSync(archivePath); } catch {}
+    _dlStatus = { state: 'done', pct: 100, message: 'Captions ready!' };
+
+  } catch (err) {
+    _dlStatus = { state: 'error', pct: 0, message: err.message };
+  }
+}
+
+module.exports = { checkWhisper, transcribeVideo, mergeDiarization, generateASSFile, generateMultiTrackASSFile, downloadWhisper, getWhisperDownloadStatus };

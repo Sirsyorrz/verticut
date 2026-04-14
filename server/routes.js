@@ -5,9 +5,9 @@ const fs   = require('fs');
 
 const { ffmpegPath, getVideoInfo } = require('./ffmpeg');
 const { getJob, setJob, setProc, deleteProc, getFilePath, setFilePath } = require('./jobs');
-const { checkWhisper, transcribeVideo, generateASSFile, generateMultiTrackASSFile } = require('./whisper');
+const { checkWhisper, transcribeVideo, generateASSFile, generateMultiTrackASSFile, downloadWhisper, getWhisperDownloadStatus } = require('./whisper');
 
-function registerRoutes(app, outputsDir) {
+function registerRoutes(app, outputsDir, whisperDir) {
 
   // ── POST /upload ───────────────────────────────────────────────────────────
   app.post('/upload', async (req, res) => {
@@ -40,14 +40,26 @@ function registerRoutes(app, outputsDir) {
 
   // ── GET /whisper_check ──────────────────────────────────────────────────────
   app.get('/whisper_check', (req, res) => {
-    res.json(checkWhisper());
+    res.json(checkWhisper(whisperDir));
+  });
+
+  // ── POST /whisper_download ─────────────────────────────────────────────────
+  app.post('/whisper_download', (req, res) => {
+    downloadWhisper(whisperDir);
+    res.json({ ok: true });
+  });
+
+  // ── GET /whisper_download_status ───────────────────────────────────────────
+  app.get('/whisper_download_status', (req, res) => {
+    res.json(getWhisperDownloadStatus());
   });
 
   // ── POST /transcribe_multi ──────────────────────────────────────────────────
   // Body: { filename, model, language, tracks: [{ track_idx, label }] }
   // Transcribes each requested track in parallel, returns one job ID.
   app.post('/transcribe_multi', async (req, res) => {
-    const { filename, model = 'base', language = null, tracks = [] } = req.body;
+    const { filename, model = 'base', language = null, tracks = [], initialPrompt = null, diarize = false, numSpeakers = null } = req.body;
+    const multiSpeaker = tracks.length > 1 || diarize;
     if (!filename)       return res.status(400).json({ error: 'No filename provided' });
     if (!tracks.length)  return res.status(400).json({ error: 'No tracks specified' });
     const filepath = getFilePath(filename);
@@ -62,10 +74,16 @@ function registerRoutes(app, outputsDir) {
     // Run all tracks in parallel
     Promise.all(
       tracks.map((t, i) =>
-        transcribeVideo(filepath, model, language, outputsDir, t.track_idx)
-          .then(segments => {
-            trackResults[i].status   = 'done';
-            trackResults[i].segments = segments;
+        transcribeVideo(filepath, model, language, outputsDir, t.track_idx, whisperDir, initialPrompt, multiSpeaker, diarize, numSpeakers)
+          .then(result => {
+            trackResults[i].status = 'done';
+            // diarize=true returns { segments, speakers }, otherwise raw array
+            if (result && result.speakers) {
+              trackResults[i].segments = result.segments;
+              trackResults[i].speakers = result.speakers;
+            } else {
+              trackResults[i].segments = result;
+            }
           })
           .catch(err => {
             trackResults[i].status = 'error';

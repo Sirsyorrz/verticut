@@ -1,56 +1,43 @@
 const { app, BrowserWindow, shell, ipcMain, dialog } = require('electron');
 const path = require('path');
-const https = require('https');
+const { autoUpdater } = require('electron-updater');
 const { startServer } = require('./server/index');
 
-function compareSemver(a, b) {
-  const pa = a.replace(/^v/, '').split('.').map(Number);
-  const pb = b.replace(/^v/, '').split('.').map(Number);
-  for (let i = 0; i < 3; i++) {
-    if ((pb[i] || 0) > (pa[i] || 0)) return true;
-    if ((pb[i] || 0) < (pa[i] || 0)) return false;
-  }
-  return false;
-}
+// ── Auto-updater config ────────────────────────────────────────────────────────
+autoUpdater.autoDownload         = false;  // ask user first
+autoUpdater.autoInstallOnAppQuit = true;   // install when user quits after accepting
 
-function checkForUpdates() {
-  const options = {
-    hostname: 'api.github.com',
-    path: '/repos/Sirsyorrz/verticut/releases/latest',
-    headers: { 'User-Agent': 'VertiCut-Updater' }
-  };
+autoUpdater.on('update-available', (info) => {
+  dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    title: 'Update Available',
+    message: `VertiCut ${info.version} is available`,
+    detail: `You have v${app.getVersion()}. Download and install the update now?\n\nThe update will download in the background and install when you restart.`,
+    buttons: ['Download Update', 'Skip'],
+    defaultId: 0,
+    cancelId: 1,
+  }).then(({ response }) => {
+    if (response === 0) autoUpdater.downloadUpdate();
+  });
+});
 
-  https.get(options, (res) => {
-    let data = '';
-    res.on('data', chunk => data += chunk);
-    res.on('end', () => {
-      try {
-        const release = JSON.parse(data);
-        const latestTag = release.tag_name;
-        const current = app.getVersion();
-        if (!latestTag || !compareSemver(current, latestTag)) return;
+autoUpdater.on('update-downloaded', () => {
+  dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    title: 'Update Ready',
+    message: 'Update downloaded',
+    detail: 'Restart VertiCut now to apply the update, or it will install automatically next time you quit.',
+    buttons: ['Restart Now', 'Later'],
+    defaultId: 0,
+    cancelId: 1,
+  }).then(({ response }) => {
+    if (response === 0) autoUpdater.quitAndInstall();
+  });
+});
 
-        const asset = (release.assets || []).find(a => a.name.endsWith('.exe'));
-        const downloadUrl = asset ? asset.browser_download_url : release.html_url;
+autoUpdater.on('error', () => {}); // silently ignore network / update errors
 
-        dialog.showMessageBox(mainWindow, {
-          type: 'info',
-          title: 'Update Available',
-          message: `VertiCut ${latestTag} is available`,
-          detail: `You have v${current}. Download the new version and replace this file to update.`,
-          buttons: ['Download Update', 'Skip'],
-          defaultId: 0,
-          cancelId: 1
-        }).then(({ response }) => {
-          if (response === 0) shell.openExternal(downloadUrl);
-        });
-      } catch (e) {
-        // Silently ignore parse errors
-      }
-    });
-  }).on('error', () => {}); // Silently ignore network errors
-}
-
+// ── Window ─────────────────────────────────────────────────────────────────────
 const PORT = 47891;
 let mainWindow = null;
 
@@ -66,17 +53,14 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
-      // Allow the renderer to load video served from localhost
       webSecurity: true
     },
-    // Remove default menu bar
     autoHideMenuBar: true
   });
 
   mainWindow.loadURL(`http://127.0.0.1:${PORT}`);
   mainWindow.maximize();
 
-  // Open external links in the system browser, not in Electron
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
@@ -84,7 +68,8 @@ function createWindow() {
 
   mainWindow.on('closed', () => { mainWindow = null; });
 
-  setTimeout(checkForUpdates, 3000);
+  // Check for updates 4 seconds after launch so it doesn't block startup
+  setTimeout(() => autoUpdater.checkForUpdatesAndNotify(), 4000);
 }
 
 ipcMain.handle('show-save-dialog', async (event, opts) => {
@@ -104,10 +89,5 @@ app.whenReady().then(async () => {
   }
 });
 
-app.on('window-all-closed', () => {
-  app.quit();
-});
-
-app.on('activate', () => {
-  if (mainWindow === null) createWindow();
-});
+app.on('window-all-closed', () => { app.quit(); });
+app.on('activate', () => { if (mainWindow === null) createWindow(); });

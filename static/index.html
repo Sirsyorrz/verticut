@@ -73,8 +73,11 @@
           <div class="tl-info">
             <span class="tl-time" id="tl-in-lbl">0:00</span>
             <span class="tl-clip-dur" id="tl-clip-dur"></span>
+            <span class="tl-zoom-label" id="tl-zoom-label"></span>
+            <button class="tl-zoom-reset" id="tl-zoom-reset" onclick="tlZoomReset()" style="display:none" title="Reset zoom">1:1</button>
             <span class="tl-time" id="tl-out-lbl">0:00</span>
           </div>
+          <div class="tl-caption-lanes" id="tl-caption-lanes"></div>
         </div>
         <span class="time-label" id="time-total">0:00</span>
       </div>
@@ -261,16 +264,37 @@
 <div id="toast"></div>
 
 <!-- CUDA / GPU error modal -->
+<div id="whisper-download-modal" style="display:none">
+  <div class="cuda-modal-box">
+    <div class="cuda-modal-icon">🎙️</div>
+    <div class="cuda-modal-title">Download Captions Engine</div>
+    <div class="cuda-modal-body">
+      Auto-captions require the <strong>faster-whisper</strong> engine (~1.2 GB).
+      It will be downloaded once and stored on your machine.
+      <br><br>
+      <div class="whisper-dl-bar-wrap">
+        <div id="whisper-dl-bar" class="whisper-dl-bar"></div>
+      </div>
+      <div id="whisper-dl-status" class="cuda-modal-note"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button id="whisper-dl-btn" class="cuda-modal-btn" onclick="startWhisperDownload()">Download Now</button>
+      <button class="cuda-modal-btn" style="background:#333" onclick="document.getElementById('whisper-download-modal').style.display='none'">Later</button>
+    </div>
+  </div>
+</div>
+
 <div id="cuda-modal" style="display:none">
   <div class="cuda-modal-box">
-    <div class="cuda-modal-icon">⚠️</div>
-    <div class="cuda-modal-title">NVIDIA GPU Required</div>
+    <div class="cuda-modal-icon">ℹ️</div>
+    <div class="cuda-modal-title">Transcription Info</div>
     <div class="cuda-modal-body">
-      Captions use <strong>faster-whisper</strong> which requires an <strong>NVIDIA GPU with CUDA</strong>.
+      Captions use <strong>faster-whisper</strong>.
       <br><br>
-      An AMD, Intel, or no dedicated GPU was detected — captions are not available on this machine.
+      <strong>NVIDIA GPU</strong> — fastest, uses CUDA.<br>
+      <strong>AMD GPU / No GPU</strong> — runs on CPU (slower, but fully supported).
       <br><br>
-      <span class="cuda-modal-note">If you do have an NVIDIA GPU, make sure your drivers are up to date and try restarting VertiCut.</span>
+      <span class="cuda-modal-note">For best performance on NVIDIA, keep your GPU drivers up to date.</span>
     </div>
     <button class="cuda-modal-btn" onclick="document.getElementById('cuda-modal').style.display='none'">Got it</button>
   </div>

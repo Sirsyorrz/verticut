@@ -181,6 +181,58 @@ header {
   background: rgba(255,95,31,0.07); border: 1px solid rgba(255,95,31,0.2);
   border-radius: 8px; padding: 1px 7px;
 }
+.tl-zoom-label {
+  font-size: 0.57rem; font-family: var(--font-mono); color: var(--accent3);
+  letter-spacing: 0.04em; min-width: 28px; text-align: center;
+}
+.tl-zoom-reset {
+  font-size: 0.57rem; font-family: var(--font-mono); color: var(--text-dim);
+  background: var(--surface3); border: 1px solid var(--border);
+  border-radius: 3px; padding: 1px 6px; cursor: pointer; align-items: center;
+  transition: all 0.12s;
+}
+.tl-zoom-reset:hover { color: var(--accent3); border-color: var(--accent3); }
+
+/* ── Caption lanes on timeline ───────────────────────────────────────── */
+.tl-caption-lanes {
+  display: flex; flex-direction: column; gap: 2px;
+  margin-top: 2px;
+}
+.tl-caption-lane {
+  display: flex; align-items: center; gap: 5px; height: 14px;
+}
+.tl-lane-label {
+  flex-shrink: 0; width: 10px;
+  display: flex; align-items: center; justify-content: center;
+}
+.tl-lane-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+}
+.tl-lane-track {
+  flex: 1; position: relative; height: 14px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 3px; overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+.tl-caption-seg {
+  position: absolute; top: 1px; bottom: 1px;
+  border-radius: 2px; min-width: 3px;
+  cursor: pointer; transition: opacity 0.12s, filter 0.12s;
+  opacity: 0.75;
+}
+.tl-caption-seg:hover {
+  opacity: 1; filter: brightness(1.25);
+  z-index: 2;
+}
+.tl-caption-seg-tooltip {
+  position: fixed; z-index: 9999;
+  background: var(--surface3); border: 1px solid var(--border2);
+  border-radius: 5px; padding: 4px 8px;
+  font-size: 0.62rem; font-family: var(--font-mono); color: var(--text);
+  pointer-events: none; white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  max-width: 260px; overflow: hidden; text-overflow: ellipsis;
+}
 
 /* ── Audio tracks bar ──────────────────────────────────────────────────────── */
 .audio-tracks-bar {
@@ -864,18 +916,73 @@ kbd {
 
 /* ── Captions panel scroll container ────────────────────────────────────── */
 .cc-panel-scroll {
-  flex: 1; overflow-y: auto; display: flex; flex-direction: column;
-  gap: 0; min-height: 0;
+  flex: 1; display: flex; flex-direction: column;
+  min-height: 0; overflow: hidden;
 }
 
-/* ── Caption sections ─────────────────────────────────────────────────── */
+/* Top zone: generate controls - collapses to slim bar */
+.cc-generate-zone {
+  flex-shrink: 0;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column;
+}
+.cc-generate-zone-body {
+  overflow-y: auto;
+  transition: max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Bottom zone: segments - fills all remaining space */
+.cc-segments-zone {
+  flex: 1; min-height: 0; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+
+/* Collapse bar - always visible at top of generate zone */
+.cc-collapse-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer; user-select: none;
+  background: var(--surface);
+  border-bottom: 1px solid transparent;
+  transition: background 0.15s;
+  flex-shrink: 0; min-height: 36px;
+}
+.cc-collapse-bar:hover { background: var(--surface2); }
+.cc-collapse-bar.open { border-bottom-color: var(--border); }
+.cc-collapse-chips { display: flex; align-items: center; gap: 5px; flex: 1; min-width: 0; overflow: hidden; }
+.cc-collapse-chip {
+  font-size: 0.6rem; font-family: var(--font-mono);
+  background: var(--surface3); border: 1px solid var(--border);
+  border-radius: 3px; padding: 2px 6px; color: var(--text-mid);
+  white-space: nowrap; flex-shrink: 0;
+}
+.cc-collapse-chip.model { color: var(--accent3); border-color: rgba(255,214,10,0.2); background: rgba(255,214,10,0.06); }
+.cc-collapse-chevron {
+  flex-shrink: 0; color: var(--text-dim); transition: transform 0.22s;
+  display: flex; align-items: center;
+}
+.cc-collapse-bar.open .cc-collapse-chevron { transform: rotate(180deg); }
+
+/* Quick-generate button in collapse bar */
+.cc-quick-gen {
+  flex-shrink: 0; display: flex; align-items: center; gap: 5px;
+  padding: 4px 10px;
+  background: rgba(255,214,10,0.07); border: 1px solid rgba(255,214,10,0.25);
+  border-radius: 4px; color: var(--accent3);
+  font-family: var(--font-mono); font-size: 0.62rem; font-weight: 700;
+  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.cc-quick-gen:hover { background: rgba(255,214,10,0.14); border-color: var(--accent3); box-shadow: 0 0 10px rgba(255,214,10,0.12); }
+.cc-quick-gen:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; }
+
+/* Caption sections (inside generate zone body) */
 .cc-section {
-  padding: 12px 14px; border-bottom: 1px solid var(--border);
-  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 7px;
 }
 .cc-segments-section { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .cc-segments-section .cc-section-title { flex-shrink: 0; }
-
 .cc-section-title {
   display: flex; align-items: center; gap: 7px;
   font-size: 0.6rem; font-family: var(--font-mono); font-weight: 700;
@@ -905,6 +1012,62 @@ kbd {
   width: 100%;
 }
 .cc-select:focus { border-color: var(--accent3); }
+.cc-input {
+  background: var(--surface3); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text); font-family: var(--font-mono);
+  font-size: 0.7rem; padding: 5px 8px; outline: none;
+  width: 100%; box-sizing: border-box;
+}
+.cc-input:focus { border-color: var(--accent3); }
+.cc-input::placeholder { color: var(--text-dim); opacity: 0.5; }
+
+/* ── Diarization section ───────────────────────────────────────── */
+.cc-diarize-section {
+  width: 100%;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+}
+.cc-diarize-toggle-row {
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; user-select: none;
+}
+.cc-diarize-toggle-row input[type=checkbox] {
+  width: 13px; height: 13px; accent-color: var(--accent); cursor: pointer;
+  flex-shrink: 0;
+}
+.cc-diarize-toggle-label {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 0.7rem; font-family: var(--font-mono); color: var(--text);
+}
+.cc-diarize-opts {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.cc-speaker-count-group {
+  display: flex; gap: 4px; margin-bottom: 6px;
+}
+.cc-speaker-count-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 1px);
+  color: var(--text-dim); font-family: var(--font-mono); font-size: 0.68rem;
+  padding: 3px 9px; cursor: pointer; transition: all 0.12s;
+}
+.cc-speaker-count-btn:hover { border-color: var(--accent); color: var(--text); }
+.cc-speaker-count-btn.active {
+  background: var(--accent); border-color: var(--accent);
+  color: #fff;
+}
+.cc-diarize-hint {
+  font-size: 0.65rem; color: var(--text-dim); opacity: 0.7;
+  margin: 0; line-height: 1.5;
+}
+
+/* Segments zone fills space and its inner section fills it too */
+.cc-segments-zone { padding: 0; }
+.cc-segments-zone .cc-section { height: 100%; border-bottom: none; }
 
 .cc-slider-row {
   display: flex; align-items: center; gap: 8px;
@@ -1141,6 +1304,24 @@ body.light-mode .export-btn { color: #fff; }
   cursor: pointer; transition: opacity 0.15s;
 }
 .cuda-modal-btn:hover { opacity: 0.85; }
+
+#whisper-download-modal {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+}
+.whisper-dl-bar-wrap {
+  width: 100%; height: 6px;
+  background: var(--border); border-radius: 3px;
+  overflow: hidden; margin: 10px 0 6px;
+}
+.whisper-dl-bar {
+  height: 100%; width: 0%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
 
 /* ── Multi-track picker ─────────────────────────────────────────────────────── */
 .cc-track-picker { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }

@@ -13,3 +13,4 @@ static/*.ico
 .gitignore
 *.ico
 .gitignore
+plan.md

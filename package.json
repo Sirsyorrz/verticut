@@ -6,13 +6,13 @@
   "scripts": {
     "start": "electron .",
     "download-whisper": "node scripts/download-whisper.js",
-    "prebuild": "node scripts/download-whisper.js",
-    "prebuild-installer": "node scripts/download-whisper.js",
     "build": "electron-builder --win portable",
-    "build-installer": "electron-builder --win nsis"
+    "build-installer": "electron-builder --win nsis",
+    "publish": "electron-builder --win nsis --publish always"
   },
   "dependencies": {
     "cors": "^2.8.5",
+    "electron-updater": "^6.8.3",
     "express": "^4.18.2",
     "ffmpeg-static": "^5.2.0",
     "ffprobe-static": "^3.1.0",
@@ -34,28 +34,39 @@
       "main.js",
       "preload.js",
       "server/**",
-      "static/**",
-      "resources/**"
+      "static/**"
     ],
     "asarUnpack": [
       "node_modules/ffmpeg-static/**",
-      "node_modules/ffprobe-static/**",
-      "resources/whisper/**"
-    ],
-    "extraResources": [
-      { "from": "resources/whisper", "to": "whisper", "filter": ["**/*"] }
+      "node_modules/ffprobe-static/**"
     ],
     "win": {
       "target": [
-        { "target": "portable", "arch": ["x64"] },
-        { "target": "nsis",     "arch": ["x64"] }
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "static/icon.ico"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Sirsyorrz",
+      "repo": "verticut"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "installerIcon": "static/icon.ico"
+      "installerIcon": "static/icon.ico",
+      "deleteAppDataOnUninstall": false
     }
   }
 }

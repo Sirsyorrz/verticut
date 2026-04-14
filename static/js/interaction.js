@@ -504,7 +504,12 @@ document.querySelector('.output-canvas-wrap').addEventListener('dblclick', e => 
 document.addEventListener('keydown', e => {
   const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
   if (tag === 'input' || tag === 'textarea') return;
-  if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (tag === 'select' || tag === 'button') document.activeElement.blur();
+    togglePlay();
+    return;
+  }
   if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'c') { e.preventDefault(); copyZone(); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'v') { e.preventDefault(); pasteZone(); }

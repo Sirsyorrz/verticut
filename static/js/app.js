@@ -72,7 +72,7 @@ async function handleFile(file) {
     }
   });
   videoEl.addEventListener('loadedmetadata', () => {
-    trimStart = 0; trimEnd = null;
+    trimStart = 0; trimEnd = null; tlZoom = 1; tlOffset = 0;
     setupCanvases();
     document.getElementById('time-total').textContent = fmt(videoEl.duration);
     document.getElementById('file-info-label').textContent = `${data.width}×${data.height} · ${fmt(data.duration)}`;
@@ -81,6 +81,7 @@ async function handleFile(file) {
     audioTracks = (data.audio_tracks || []).map(t => ({ ...t, muted: false }));
     setupTrackAudioEls();
     renderAudioTracks();
+    renderCaptionLanes();
     toast('Auto-added centered 9:16 crop — draw more zones or adjust as needed');
   });
   dz.style.display = 'none';

@@ -8,6 +8,7 @@ const { registerRoutes } = require('./routes');
 function startServer(port, userDataPath) {
   return new Promise((resolve, reject) => {
     const outputsDir = os.tmpdir();
+    const whisperDir = path.join(userDataPath, 'whisper');
 
     const app = express();
     app.use(cors());
@@ -15,7 +16,7 @@ function startServer(port, userDataPath) {
     app.use(express.static(path.join(__dirname, '..', 'static')));
     app.set('port', port);
 
-    registerRoutes(app, outputsDir);
+    registerRoutes(app, outputsDir, whisperDir);
 
     const server = app.listen(port, '127.0.0.1', () => {
       console.log(`VertiCut server on port ${port}`);

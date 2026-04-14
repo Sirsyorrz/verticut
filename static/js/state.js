@@ -52,6 +52,8 @@ let settingProbeForZone = null; // zone id when assigning a probe pixel
 // Trim state
 let trimStart = 0, trimEnd = null;
 let tlDragging = null; // 'head' | 'in' | 'out'
+let tlZoom     = 1;    // magnification factor (1 = full video)
+let tlOffset   = 0;    // visible window start as fraction of total duration
 
 // Snap lines for output canvas during drag
 let activeSnapLines = null;

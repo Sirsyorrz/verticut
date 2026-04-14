@@ -12,3 +12,4 @@ outputs/
 static/*.png
 static/*.ico
 static/*.svg
+.gitignore

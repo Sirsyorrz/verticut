@@ -153,6 +153,12 @@ function switchPanelTab(tab) {
 }
 
 // ── Generate captions (call server /transcribe) ────────────────────────────────
+// ── Show the CUDA / no-GPU error modal ───────────────────────────────────────
+function showCudaModal() {
+  const el = document.getElementById('cuda-modal');
+  if (el) el.style.display = 'flex';
+}
+
 async function generateCaptions() {
   if (!filename) return toast('Load a video first');
   const model    = document.getElementById('cc-model').value;
@@ -161,6 +167,26 @@ async function generateCaptions() {
   const status   = document.getElementById('cc-status');
 
   btn.disabled = true;
+  setCaptionStatus('running', 'Checking GPU…');
+
+  // ── Pre-flight: confirm NVIDIA GPU + faster-whisper are available ──────────
+  try {
+    const check = await (await fetch(`${API}/whisper_check`)).json();
+    if (check.type === 'no-cuda') {
+      setCaptionStatus('error', 'NVIDIA GPU required — see details');
+      btn.disabled = false;
+      showCudaModal();
+      return;
+    }
+    if (check.type === 'none') {
+      setCaptionStatus('error', 'faster-whisper not found — reinstall VertiCut');
+      btn.disabled = false;
+      return;
+    }
+  } catch {
+    setCaptionStatus('error', 'Could not reach server'); btn.disabled = false; return;
+  }
+
   setCaptionStatus('running', 'Starting Whisper…');
 
   let jobId;
@@ -229,11 +255,12 @@ function renderCaptionsPanel() {
         <div class="cc-field" style="flex:2">
           <label class="cc-label">Model</label>
           <select class="cc-select" id="cc-model">
-            <option value="tiny">tiny (fastest)</option>
-            <option value="base" selected>base</option>
-            <option value="small">small</option>
-            <option value="medium">medium</option>
-            <option value="large">large (best)</option>
+            <option value="tiny">tiny — ~1 GB VRAM (fastest)</option>
+            <option value="base" selected>base — ~1 GB VRAM</option>
+            <option value="small">small — ~2 GB VRAM</option>
+            <option value="medium">medium — ~5 GB VRAM</option>
+            <option value="large-v2">large-v2 — ~10 GB VRAM</option>
+            <option value="large-v3">large-v3 — ~10 GB VRAM (best)</option>
           </select>
         </div>
         <div class="cc-field" style="flex:1.4">

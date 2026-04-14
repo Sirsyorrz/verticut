@@ -260,6 +260,22 @@
 
 <div id="toast"></div>
 
+<!-- CUDA / GPU error modal -->
+<div id="cuda-modal" style="display:none">
+  <div class="cuda-modal-box">
+    <div class="cuda-modal-icon">⚠️</div>
+    <div class="cuda-modal-title">NVIDIA GPU Required</div>
+    <div class="cuda-modal-body">
+      Captions use <strong>faster-whisper</strong> which requires an <strong>NVIDIA GPU with CUDA</strong>.
+      <br><br>
+      An AMD, Intel, or no dedicated GPU was detected — captions are not available on this machine.
+      <br><br>
+      <span class="cuda-modal-note">If you do have an NVIDIA GPU, make sure your drivers are up to date and try restarting VertiCut.</span>
+    </div>
+    <button class="cuda-modal-btn" onclick="document.getElementById('cuda-modal').style.display='none'">Got it</button>
+  </div>
+</div>
+
 <!-- Scripts loaded in dependency order -->
 <script src="js/state.js"></script>
 <script src="js/utils.js"></script>

@@ -95,27 +95,36 @@ async function main() {
   console.log(`Downloading to ${archivePath}…`);
   await downloadFile(asset.browser_download_url, archivePath);
 
-  // 4. Extract — we only need the exe (and any required .dll files)
+  // 4. Extract everything flat into DEST_DIR (-e strips directory structure)
   console.log(`Extracting to ${DEST_DIR}…`);
   const result = spawnSync(
     path7za,
-    ['e', archivePath, `-o${DEST_DIR}`, '-y', '*.exe', '*.dll', '*.so', '*.dylib'],
+    ['e', archivePath, `-o${DEST_DIR}`, '-y'],
     { stdio: 'inherit' }
   );
 
   if (result.status !== 0) {
-    console.error('7z extraction failed.');
+    console.error('7z extraction failed. Archive kept at:', archivePath);
     process.exit(1);
   }
-
-  // 5. Clean up archive
-  try { fs.unlinkSync(archivePath); } catch {}
 
   if (!fs.existsSync(EXE_PATH)) {
-    console.error(`Extraction finished but ${EXE_NAME} not found in ${DEST_DIR}.`);
-    console.error('Files extracted:', fs.readdirSync(DEST_DIR).join(', '));
-    process.exit(1);
+    // Try to find the exe under a different name in case the archive layout changed
+    const allFiles = fs.readdirSync(DEST_DIR);
+    const exeFile  = allFiles.find(f => f.toLowerCase().endsWith('.exe'));
+    if (exeFile) {
+      fs.renameSync(path.join(DEST_DIR, exeFile), EXE_PATH);
+      console.log(`Renamed ${exeFile} → ${EXE_NAME}`);
+    } else {
+      console.error(`Extraction finished but no .exe found in ${DEST_DIR}.`);
+      console.error('Files found:', allFiles.join(', ') || '(none)');
+      console.error('Archive kept at:', archivePath, '— inspect it manually with: 7z l', archivePath);
+      process.exit(1);
+    }
   }
+
+  // 5. Clean up archive only after confirming exe exists
+  try { fs.unlinkSync(archivePath); } catch {}
 
   console.log(`✓ faster-whisper.exe ready at ${EXE_PATH}`);
 }

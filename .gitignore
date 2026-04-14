@@ -9,7 +9,7 @@ outputs/
 *.log
 .DS_Store
 .claude
-static/*.png
 static/*.ico
-static/*.svg
+.gitignore
+*.ico
 .gitignore

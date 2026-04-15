@@ -79,7 +79,7 @@ const CAPTION_TRACK_COLORS = ['#FF6B35','#3B9EFF','#06D6A0','#FFD60A','#C77DFF',
 // Factory — returns a fresh style object with defaults
 function defaultCaptionStyle() {
   return {
-    fontFamily:    'Arial',
+    fontFamily:    'Montserrat',
     fontSize:      72,
     fontWeight:    'bold',
     fontItalic:    false,
@@ -107,7 +107,7 @@ function defaultCaptionStyle() {
 
 let captionStyle = {
   enabled:       false,
-  fontFamily:    'Arial',
+  fontFamily:    'Montserrat',
   fontSize:      72,          // in OUT_H (1920) pixel space
   fontWeight:    'bold',
   fontItalic:    false,

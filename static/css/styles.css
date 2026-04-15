@@ -1149,6 +1149,7 @@ kbd {
   width: 100%;
 }
 .cc-select:focus { border-color: var(--accent3); }
+.cc-font-select option { font-family: inherit; }
 .cc-input {
   background: var(--surface3); border: 1px solid var(--border);
   border-radius: var(--radius); color: var(--text); font-family: var(--font-mono);

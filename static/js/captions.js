@@ -53,7 +53,7 @@ function _drawOneSeg(seg, cs, t) {
 
   const fs      = Math.max(4, cs.fontSize * scl);
   const weight  = cs.fontWeight === 'black' ? '900' : cs.fontWeight;
-  const fontStr = `${cs.fontItalic ? 'italic ' : ''}${weight} ${fs}px "${cs.fontFamily}", Arial, sans-serif`;
+  const fontStr = `${cs.fontItalic ? 'italic ' : ''}${weight} ${fs}px "${cs.fontFamily}", sans-serif`;
 
   // ── Animation transforms ─────────────────────────────────────────────────
   const alpha    = _animAlpha(cs, seg, t);
@@ -490,7 +490,7 @@ function renderCaptionsPanel() {
         </div>
         <div class="cc-field">
           <label class="cc-label" title="Seed Whisper with game-specific words for better accuracy">
-            Hint <span style="opacity:0.35;font-weight:400;font-size:0.56rem">(optional — game name, keywords)</span>
+            Hint <span style="opacity:0.35;font-weight:400;font-size:0.56rem">(optional — game name, keywords. Makes the captions ALOT more accurate)</span>
           </label>
           <input class="cc-input" id="cc-prompt" type="text"
             placeholder="e.g. Warzone, loadout, gulag, killstreak…"
@@ -569,19 +569,34 @@ function renderCaptionsPanel() {
           <div class="cc-style-group-label">Typography</div>
           <div class="cc-field">
             <label class="cc-label">Font</label>
-            <select class="cc-select" id="cc-font-family" onchange="updateCaptionStyle('fontFamily',this.value)">
-              <option value="Arial">Arial</option>
-              <option value="Arial Black">Arial Black</option>
-              <option value="Impact">Impact</option>
-              <option value="Verdana">Verdana</option>
-              <option value="Tahoma">Tahoma</option>
-              <option value="Calibri">Calibri</option>
-              <option value="Segoe UI">Segoe UI</option>
-              <option value="Georgia">Georgia</option>
-              <option value="Times New Roman">Times New Roman</option>
-              <option value="Trebuchet MS">Trebuchet MS</option>
-              <option value="Comic Sans MS">Comic Sans MS</option>
-              <option value="Courier New">Courier New</option>
+            <select class="cc-select cc-font-select" id="cc-font-family" onchange="updateCaptionStyle('fontFamily',this.value)">
+              <optgroup label="Sans-Serif">
+                <option value="Montserrat">Montserrat</option>
+                <option value="Poppins">Poppins</option>
+                <option value="Roboto">Roboto</option>
+                <option value="Raleway">Raleway</option>
+                <option value="Oswald">Oswald</option>
+                <option value="Bebas Neue">Bebas Neue</option>
+                <option value="Anton">Anton</option>
+                <option value="Russo One">Russo One</option>
+                <option value="Passion One">Passion One</option>
+              </optgroup>
+              <optgroup label="Serif">
+                <option value="Playfair Display">Playfair Display</option>
+                <option value="Abril Fatface">Abril Fatface</option>
+              </optgroup>
+              <optgroup label="Display / Fun">
+                <option value="Permanent Marker">Permanent Marker</option>
+                <option value="Bangers">Bangers</option>
+                <option value="Luckiest Guy">Luckiest Guy</option>
+                <option value="Lobster">Lobster</option>
+                <option value="Black Ops One">Black Ops One</option>
+                <option value="Creepster">Creepster</option>
+                <option value="Special Elite">Special Elite</option>
+              </optgroup>
+              <optgroup label="Monospace">
+                <option value="JetBrains Mono">JetBrains Mono</option>
+              </optgroup>
             </select>
           </div>
           <div class="cc-slider-row">
@@ -854,6 +869,10 @@ function updateCaptionStyle(key, value) {
   }
   if (key === 'bgOpacity') updateBgRowOpacity();
   if (key === 'textAlign') updateAlignChips();
+  if (key === 'fontFamily') {
+    // Pre-load the Google Font for canvas rendering
+    document.fonts.load(`bold 72px "${value}"`).catch(() => {});
+  }
 }
 
 function updateBgRowOpacity() {

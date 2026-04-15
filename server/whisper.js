@@ -567,7 +567,14 @@ async function downloadWhisper(whisperDir) {
     // 4. Extract with 7zip-bin (already in node_modules from build scripts)
     _dlStatus = { state: 'downloading', pct: 100, message: 'Extracting…' };
     let path7za;
-    try { path7za = require('7zip-bin').path7za; } catch {
+    try {
+      // In a packaged app, 7zip-bin is unpacked from asar — resolve the real path
+      path7za = require('7zip-bin').path7za;
+      // electron-builder unpacks to app.asar.unpacked; fix path if still inside asar
+      if (path7za.includes('app.asar') && !path7za.includes('app.asar.unpacked')) {
+        path7za = path7za.replace('app.asar', 'app.asar.unpacked');
+      }
+    } catch {
       throw new Error('7zip-bin not available — cannot extract whisper archive');
     }
     const result = spawnSync(path7za, ['e', archivePath, `-o${whisperDir}`, '-y'], { stdio: 'pipe' });

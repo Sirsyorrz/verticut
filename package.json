@@ -6,9 +6,10 @@
   "scripts": {
     "start": "electron .",
     "download-whisper": "node scripts/download-whisper.js",
-    "build": "electron-builder --win nsis",
-    "build-portable": "electron-builder --win portable",
-    "publish": "electron-builder --win nsis --publish always"
+    "build": "npm run fetch-win-bins && electron-builder --win nsis",
+    "build-portable": "npm run fetch-win-bins && electron-builder --win portable",
+    "publish": "npm run fetch-win-bins && electron-builder --win nsis --publish always",
+    "fetch-win-bins": "node scripts/fetch-win-bins.js"
   },
   "dependencies": {
     "7zip-bin": "^5.2.0",

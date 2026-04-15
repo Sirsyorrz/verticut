@@ -70,9 +70,11 @@ function applyPreset(preset) {
     return z;
   });
   selectedZoneId = null; colorIdx = zones.length;
-  // Restore hint field if saved with this preset
+  // Restore hint field — always apply (even if empty) so stale hints don't linger
+  const hintVal = preset.captionHint ?? '';
+  if (typeof _captionHintCache !== 'undefined') _captionHintCache = hintVal;
   const hintEl = document.getElementById('cc-prompt');
-  if (hintEl && preset.captionHint !== undefined) hintEl.value = preset.captionHint;
+  if (hintEl) hintEl.value = hintVal;
   renderZonesList();
   closePresetsMenu();
   toast(`Applied "${preset.name}" — ${preset.zones.length} zone${preset.zones.length !== 1 ? 's' : ''} loaded`);
@@ -137,7 +139,9 @@ function updatePreset(gameId, presetId) {
   const p = g.presets.find(p => p.id === presetId);
   if (!p) return;
   p.zones = serializeZones();
-  p.captionHint = document.getElementById('cc-prompt')?.value?.trim() || '';
+  const _hintDom = document.getElementById('cc-prompt')?.value?.trim();
+  p.captionHint = _hintDom !== undefined ? _hintDom
+    : (typeof _captionHintCache !== 'undefined' ? _captionHintCache : '');
   p.updatedAt = Date.now();
   storeGameGroups(groups);
   _confirmAction = null;
@@ -291,10 +295,13 @@ function confirmSavePreset() {
   let gameId = document.getElementById('preset-game-select').value;
   let group = groups.find(g => g.id === gameId) || groups[0];
   closePresetModal();
+  const hintFromDom = document.getElementById('cc-prompt')?.value?.trim();
+  const captionHint = hintFromDom !== undefined ? hintFromDom
+    : (typeof _captionHintCache !== 'undefined' ? _captionHintCache : '');
   const preset = {
     id: Date.now().toString() + Math.random().toString(36).slice(2),
     name, createdAt: Date.now(), zones: serializeZones(),
-    captionHint: document.getElementById('cc-prompt')?.value?.trim() || ''
+    captionHint
   };
   group.presets.push(preset);
   storeGameGroups(groups);

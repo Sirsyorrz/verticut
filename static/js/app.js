@@ -18,6 +18,9 @@ function resetToStart() {
   if (exportPollTimer) { clearInterval(exportPollTimer); exportPollTimer = null; }
   if (captionPollTimer) { clearInterval(captionPollTimer); captionPollTimer = null; }
   captionTracks = []; activeCaptionTab = 0; captionStyle.enabled = false;
+  // Also reset the manual-height override so auto-sizing resumes
+  const _tlSec = document.getElementById('timeline-section');
+  if (_tlSec) _tlSec.dataset.manualHeight = '';
   // Clear both canvases so the previous frame doesn't persist
   requestAnimationFrame(() => {
     srcCtx.clearRect(0, 0, srcCanvas.width, srcCanvas.height);
@@ -82,6 +85,7 @@ async function handleFile(file) {
     setupTrackAudioEls();
     renderAudioTracks();
     renderCaptionLanes();
+    if (typeof updateTimelineHeight === 'function') updateTimelineHeight();
     toast('Auto-added centered 9:16 crop — draw more zones or adjust as needed');
   });
   dz.style.display = 'none';

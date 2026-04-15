@@ -107,13 +107,57 @@ function tlZoomReset() {
   if (typeof renderAudioLanes === 'function') renderAudioLanes();
 }
 
+// Allow double-clicking the resize bar to reset to auto-height
+document.addEventListener('DOMContentLoaded', () => {
+  const _rb = document.getElementById('tl-resize-bar');
+  const _sc = document.getElementById('timeline-section');
+  if (_rb && _sc) {
+    _rb.addEventListener('dblclick', () => {
+      _sc.dataset.manualHeight = '';
+      updateTimelineHeight();
+    });
+  }
+});
+
 // tl-track is hidden (display:none) — no events fire on it.
 // Wheel zoom is wired to tl-tracks-area in DOMContentLoaded below.
+
+// ── Timeline auto-height based on track count ────────────────────────────────
+const TL_VIDEO_ROW_H   = 56;  // px — video row
+const TL_AUDIO_ROW_H   = 32;  // px — per audio track row
+const TL_CAPTION_ROW_H = 30;  // px — per caption lane
+const TL_RESIZE_BAR_H  = 4;   // px — drag handle
+const TL_BASE_PAD      = 8;   // px — top/bottom breathing room inside tl-body
+
+function updateTimelineHeight() {
+  const section = document.getElementById('timeline-section');
+  if (!section) return;
+  // Don't override a user-manual resize that set an explicit style height
+  // We detect manual override by checking the data attribute we set on drag.
+  if (section.dataset.manualHeight === '1') return;
+
+  const audioRowCount   = document.querySelectorAll('.tl-row-audio').length;
+  const captionRowCount = document.querySelectorAll('.tl-caption-lane').length;
+
+  const bodyH = TL_BASE_PAD
+    + TL_VIDEO_ROW_H
+    + audioRowCount   * TL_AUDIO_ROW_H
+    + captionRowCount * TL_CAPTION_ROW_H;
+
+  const totalH = TL_RESIZE_BAR_H + bodyH;
+  const clamped = Math.max(80, Math.min(520, totalH));
+  section.style.height = clamped + 'px';
+}
 
 // ── Timeline section vertical resize ─────────────────────────────────────────
 let _tlSectionResizing  = false;
 let _tlSectionResizeStartY = 0;
 let _tlSectionResizeStartH = 0;
+
+// ── Middle-mouse pan state ────────────────────────────────────────────────────
+let _tlMmPanning    = false;
+let _tlMmPanStartX  = 0;
+let _tlMmPanStartOff = 0;
 
 // ── All new event wiring — runs after DOM is ready ────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -191,7 +235,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('mousemove', e => {
       if (!_tlSectionResizing) return;
       const delta = _tlSectionResizeStartY - e.clientY;
-      section.style.height = Math.max(80, Math.min(480, _tlSectionResizeStartH + delta)) + 'px';
+      const newH = Math.max(80, Math.min(520, _tlSectionResizeStartH + delta));
+      section.style.height = newH + 'px';
+      section.dataset.manualHeight = '1'; // user has taken manual control
     });
     window.addEventListener('mouseup', () => {
       if (_tlSectionResizing) {
@@ -200,4 +246,43 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // ── Middle-mouse pan ───────────────────────────────────────────────────────
+  if (tracksArea) {
+    // prevent the default middle-click scroll/autoscroll behaviour
+    tracksArea.addEventListener('mousedown', e => {
+      if (e.button !== 1) return;
+      if (!videoEl || !videoEl.duration || tlZoom <= 1) return;
+      e.preventDefault();
+      _tlMmPanning     = true;
+      _tlMmPanStartX   = e.clientX;
+      _tlMmPanStartOff = tlOffset;
+      tracksArea.classList.add('tl-panning');
+    });
+
+    // also swallow the middle-click context menu that some OSes show
+    tracksArea.addEventListener('auxclick', e => {
+      if (e.button === 1) e.preventDefault();
+    });
+  }
+
+  window.addEventListener('mousemove', e => {
+    if (!_tlMmPanning || !videoEl || !videoEl.duration) return;
+    const r       = (document.getElementById('tl-video-wrap') || tracksArea).getBoundingClientRect();
+    const deltaX  = e.clientX - _tlMmPanStartX;
+    const deltaFrac = deltaX / r.width;        // positive = dragged right = earlier in timeline
+    tlOffset = _tlMmPanStartOff - deltaFrac / tlZoom;
+    tlClampOffset();
+    updateTL();
+    renderCaptionLanes();
+    if (typeof renderAudioLanes === 'function') renderAudioLanes();
+  });
+
+  window.addEventListener('mouseup', e => {
+    if (e.button === 1 && _tlMmPanning) {
+      _tlMmPanning = false;
+      const ta = document.getElementById('tl-tracks-area');
+      if (ta) ta.classList.remove('tl-panning');
+    }
+  });
 });

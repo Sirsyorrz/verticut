@@ -1,5 +1,8 @@
 // ── Captions module - Whisper transcription + style + canvas rendering ─────────
 
+// Persistent cache so the hint survives panel re-renders
+let _captionHintCache = '';
+
 // ── Caption canvas rendering ───────────────────────────────────────────────────
 function drawCaptionsOnCanvas() {
   if (!captionStyle.enabled || !captionTracks.length || !videoEl) return;
@@ -137,16 +140,47 @@ function _drawTextLine(text, x, y, cs, fs, scl, fillColor) {
     outCtx.shadowOffsetX = 2  * scl;
     outCtx.shadowOffsetY = 2  * scl;
   }
+
+  const lsPx = (cs.letterSpacing || 0) * scl;
+  const hasNativeLS = 'letterSpacing' in outCtx;
+
   // Stroke / outline
   if (cs.strokeWidth > 0) {
     outCtx.lineWidth   = cs.strokeWidth * scl * 2;
     outCtx.strokeStyle = cs.strokeColor;
     outCtx.lineJoin    = 'round';
-    outCtx.strokeText(text, x, y);
+    if (lsPx > 0 && !hasNativeLS) {
+      _drawCharByChar(text, x, y, lsPx, 'stroke');
+    } else {
+      outCtx.strokeText(text, x, y);
+    }
   }
   outCtx.shadowBlur = 0; outCtx.shadowOffsetX = 0; outCtx.shadowOffsetY = 0;
   outCtx.fillStyle  = fillColor;
-  outCtx.fillText(text, x, y);
+  if (lsPx > 0 && !hasNativeLS) {
+    _drawCharByChar(text, x, y, lsPx, 'fill');
+  } else {
+    outCtx.fillText(text, x, y);
+  }
+}
+
+// Manual letter-spacing fallback: draw each character individually
+function _drawCharByChar(text, x, y, lsPx, mode) {
+  const align = outCtx.textAlign;
+  // Measure total width with spacing to find the starting x for center/right align
+  const chars = [...text]; // handle multi-byte correctly
+  const charWidths = chars.map(c => outCtx.measureText(c).width);
+  const totalW = charWidths.reduce((a, b) => a + b, 0) + lsPx * Math.max(0, chars.length - 1);
+  let cx = align === 'center' ? x - totalW / 2 :
+           align === 'right'  ? x - totalW     : x;
+  const savedAlign = outCtx.textAlign;
+  outCtx.textAlign = 'left';
+  for (let i = 0; i < chars.length; i++) {
+    if (mode === 'fill')   outCtx.fillText(chars[i], cx, y);
+    else                   outCtx.strokeText(chars[i], cx, y);
+    cx += charWidths[i] + lsPx;
+  }
+  outCtx.textAlign = savedAlign;
 }
 
 function _drawLineWithHighlight(lineText, lx, ly, fs, cs, t, wordTimes, scl) {
@@ -214,15 +248,17 @@ async function generateCaptions() {
 
   // ── Hint nudge: warn (non-blocking) if hint field is empty ──────────────
   const hintEl = document.getElementById('cc-prompt');
-  if (hintEl && !hintEl.value.trim()) {
-    hintEl.classList.add('cc-hint-warn');
-    setTimeout(() => hintEl.classList.remove('cc-hint-warn'), 2500);
+  // Sync the live DOM value into the persistent cache before using it
+  if (hintEl) _captionHintCache = hintEl.value;
+  if (!_captionHintCache.trim()) {
+    if (hintEl) hintEl.classList.add('cc-hint-warn');
+    setTimeout(() => { if (hintEl) hintEl.classList.remove('cc-hint-warn'); }, 2500);
     toast('💡 Add a game name or keywords to the hint for better accuracy');
   }
 
   const model         = document.getElementById('cc-model').value;
   const language      = document.getElementById('cc-lang').value;
-  const initialPrompt = document.getElementById('cc-prompt')?.value?.trim() || null;
+  const initialPrompt = _captionHintCache.trim() || null;
   const diarize       = document.getElementById('cc-diarize')?.checked || false;
   const numSpeakersEl = document.querySelector('.cc-speaker-count-btn.active');
   const numSpeakers   = numSpeakersEl?.dataset.count ? +numSpeakersEl.dataset.count : null;
@@ -431,14 +467,14 @@ function renderCaptionsPanel() {
           <div class="cc-field" style="flex:2">
             <label class="cc-label">Model</label>
             <select class="cc-select" id="cc-model">
-              <option value="tiny">tiny — fastest</option>
-              <option value="base">base — fast</option>
-              <option value="small">small — 2 GB</option>
-              <option value="medium">medium — 5 GB</option>
-              <option value="large-v3-turbo" selected>large-v3-turbo ★</option>
-              <option value="distil-large-v3">distil-large-v3</option>
-              <option value="large-v2">large-v2 — 10 GB</option>
-              <option value="large-v3">large-v3 — best</option>
+              <option value="tiny">tiny — ~1 GB VRAM — fastest</option>
+              <option value="base">base — ~1 GB VRAM — fast</option>
+              <option value="small">small — ~2 GB VRAM</option>
+              <option value="medium">medium — ~5 GB VRAM</option>
+              <option value="large-v3-turbo" selected>large-v3-turbo — ~6 GB VRAM ★ recommended</option>
+              <option value="distil-large-v3">distil-large-v3 — ~6 GB VRAM — fast+accurate</option>
+              <option value="large-v2">large-v2 — ~10 GB VRAM</option>
+              <option value="large-v3">large-v3 — ~10 GB VRAM — best accuracy</option>
             </select>
           </div>
           <div class="cc-field" style="flex:1">
@@ -463,7 +499,9 @@ function renderCaptionsPanel() {
             Hint <span style="opacity:0.35;font-weight:400;font-size:0.56rem">(optional — game name, keywords)</span>
           </label>
           <input class="cc-input" id="cc-prompt" type="text"
-            placeholder="e.g. Warzone, loadout, gulag, killstreak…">
+            placeholder="e.g. Warzone, loadout, gulag, killstreak…"
+            value="${escapeHtml(_captionHintCache)}"
+            oninput="_captionHintCache=this.value">
         </div>
         <div class="cc-field">
           <label class="cc-label">Tracks</label>
@@ -804,7 +842,17 @@ function updateTrackStyleBadge() {
 }
 
 function updateCaptionStyle(key, value) {
-  activeTrackStyle()[key] = value;
+  // Always update the global captionStyle so it acts as a living default
+  // (new tracks inherit from it, and it's used when no tracks exist yet)
+  if (key !== 'enabled') captionStyle[key] = value;
+
+  // Also update the active track's per-track style if one exists
+  const track = captionTracks[activeCaptionTab];
+  if (track) {
+    if (!track.style) track.style = defaultCaptionStyle();
+    track.style[key] = value;
+  }
+
   updateTrackStyleBadge();
   if (key === 'textColor') {
     const el = document.getElementById('cc-text-color-hex');
@@ -957,7 +1005,10 @@ function renderCaptionLanes() {
   const container = document.getElementById('tl-caption-lanes');
   if (!container) return;
   container.innerHTML = '';
-  if (!captionTracks.length || !videoEl || !videoEl.duration) return;
+  if (!captionTracks.length || !videoEl || !videoEl.duration) {
+    if (typeof updateTimelineHeight === 'function') updateTimelineHeight();
+    return;
+  }
 
   captionTracks.forEach((track, ti) => {
     if (!track.segments?.length) return;
@@ -1031,11 +1082,25 @@ function renderCaptionLanes() {
           containerEl: bar, segEl: el, moved: false };
       });
 
-      // Click to seek (only if no drag occurred)
+      // Click to seek AND scroll the segments panel to this segment
       el.addEventListener('click', e => {
         if (_tlSegDrag?.moved) return;
         e.stopPropagation();
         if (videoEl) videoEl.currentTime = seg.start;
+        // Switch to the correct track tab, then scroll to + flash the segment row
+        if (activeCaptionTab !== ti) {
+          setActiveCaptionTab(ti);
+        }
+        // Give the DOM a tick to render if tab just switched
+        setTimeout(() => {
+          const segEl = document.getElementById('cc-seg-' + si);
+          if (!segEl) return;
+          segEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          segEl.classList.remove('cc-seg-flash');
+          void segEl.offsetWidth; // reflow to restart animation
+          segEl.classList.add('cc-seg-flash');
+          segEl.addEventListener('animationend', () => segEl.classList.remove('cc-seg-flash'), { once: true });
+        }, 20);
       });
 
       // Tooltip
@@ -1067,6 +1132,9 @@ function renderCaptionLanes() {
     lane.appendChild(bar);
     container.appendChild(lane);
   });
+
+  // Auto-resize timeline to fit all lanes
+  if (typeof updateTimelineHeight === 'function') updateTimelineHeight();
 }
 function renderSegmentsList() {
   renderTrackTabs();

@@ -134,7 +134,8 @@ header {
   flex-shrink: 0; width: 100%;
   display: flex; flex-direction: column;
   background: var(--surface); border-top: 2px solid var(--border);
-  height: 130px; min-height: 80px; max-height: 480px; overflow: hidden;
+  height: auto; min-height: 80px; max-height: 520px; overflow: hidden;
+  transition: height 0.18s ease;
 }
 .tl-resize-bar {
   height: 4px; flex-shrink: 0; background: var(--border);
@@ -146,8 +147,8 @@ header {
 }
 .tl-play-col {
   flex-shrink: 0; width: 72px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 4px; padding: 6px; border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  gap: 4px; padding: 10px 6px 6px; border-right: 1px solid var(--border);
   background: var(--surface);
 }
 .tl-cur-time { font-size: 0.58rem !important; }
@@ -157,9 +158,12 @@ header {
   border-left: 1px solid var(--border); background: var(--surface);
 }
 .tl-tracks-area {
-  flex: 1; min-width: 0; overflow-y: auto; overflow-x: hidden; position: relative;
+  flex: 1; min-width: 0; overflow-y: hidden; overflow-x: hidden; position: relative;
   --tl-label-w: 72px; --tl-head-pct: 0;
 }
+/* panning cursor while middle-mouse is held */
+.tl-tracks-area.tl-panning { cursor: grabbing !important; }
+.tl-tracks-area.tl-panning * { pointer-events: none !important; }
 .tl-fullhead {
   position: absolute; top: 0; bottom: 0; width: 1.5px;
   background: rgba(255,255,255,0.85); pointer-events: none; z-index: 10;
@@ -283,7 +287,7 @@ header {
 .tl-caption-lane {
   display: flex; align-items: stretch;
   border-bottom: 1px solid rgba(255,255,255,0.04);
-  min-height: 28px;
+  min-height: 30px; height: 30px;
 }
 .tl-lane-label {
   flex-shrink: 0; width: var(--tl-label-w, 72px);
@@ -1358,9 +1362,17 @@ kbd {
   background: var(--surface2); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 8px 10px;
   display: flex; flex-direction: column; gap: 5px;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background 0.15s;
 }
 .cc-segment:hover { border-color: rgba(255,214,10,0.25); }
+/* Flash highlight when scrolled-to from timeline click */
+@keyframes cc-seg-flash {
+  0%   { background: color-mix(in srgb, var(--accent3) 22%, var(--surface2)); border-color: var(--accent3); }
+  100% { background: var(--surface2); border-color: var(--border); }
+}
+.cc-segment.cc-seg-flash {
+  animation: cc-seg-flash 0.9s ease-out forwards;
+}
 .cc-seg-times {
   display: flex; align-items: center; gap: 5px;
 }

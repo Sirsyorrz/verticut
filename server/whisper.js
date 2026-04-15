@@ -435,10 +435,14 @@ function generateMultiTrackASSFile(tracks, outputPath, playResX = 1080, playResY
   // Build style rows
   const styleRows = tracks.map((track, ti) => {
     const style    = track.style || {};
+    // Strip quotes — ASS font names must not be quoted
     const fontName = (style.fontFamily || 'Arial').replace(/['"]/g, '').trim();
     const fontSize = Math.max(8, Math.round(style.fontSize || 72));
-    const bold     = ['bold','700','800','900','black','heavy'].includes(String(style.fontWeight || 'bold').toLowerCase()) ? -1 : 0;
+    // Map weight string to ASS bold flag (-1 = bold, 0 = normal)
+    const fw       = String(style.fontWeight || 'bold').toLowerCase();
+    const bold     = (fw === 'normal' || fw === '400') ? 0 : -1;
     const italic   = style.fontItalic ? -1 : 0;
+    // Letter spacing in ASS is per-char spacing in pixels (integer)
     const spacing  = Math.max(0, Math.round(style.letterSpacing || 0));
     const primary  = cssToASS(style.textColor   || '#FFFFFF', 1);
     const outline  = cssToASS(style.strokeColor || '#000000', 1);

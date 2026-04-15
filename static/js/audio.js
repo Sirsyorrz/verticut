@@ -204,6 +204,8 @@ function renderAudioTracks() {
   });
 
   renderAudioLanes();
+  // Auto-resize timeline section to fit all tracks
+  if (typeof updateTimelineHeight === 'function') updateTimelineHeight();
 }
 
 // Reposition all audio bars using current zoom/offset and per-track trim

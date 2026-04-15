@@ -246,15 +246,9 @@ async function generateCaptions() {
   const selectedTracks = getSelectedTracks();
   if (!selectedTracks.length) return toast('Select at least one track to transcribe');
 
-  // ── Hint nudge: warn (non-blocking) if hint field is empty ──────────────
+  // ── Sync hint cache from live DOM ──────────────────────────────────────
   const hintEl = document.getElementById('cc-prompt');
-  // Sync the live DOM value into the persistent cache before using it
   if (hintEl) _captionHintCache = hintEl.value;
-  if (!_captionHintCache.trim()) {
-    if (hintEl) hintEl.classList.add('cc-hint-warn');
-    setTimeout(() => { if (hintEl) hintEl.classList.remove('cc-hint-warn'); }, 2500);
-    toast('💡 Add a game name or keywords to the hint for better accuracy');
-  }
 
   const model         = document.getElementById('cc-model').value;
   const language      = document.getElementById('cc-lang').value;
@@ -807,7 +801,7 @@ function updateCaptionToggleUI() {
 function activeTrackStyle() {
   const track = captionTracks[activeCaptionTab];
   if (!track) return captionStyle;
-  if (!track.style) track.style = defaultCaptionStyle();
+  if (!track.style) track.style = {};
   return track.style;
 }
 
@@ -849,7 +843,7 @@ function updateCaptionStyle(key, value) {
   // Also update the active track's per-track style if one exists
   const track = captionTracks[activeCaptionTab];
   if (track) {
-    if (!track.style) track.style = defaultCaptionStyle();
+    if (!track.style) track.style = {};
     track.style[key] = value;
   }
 
@@ -989,12 +983,50 @@ let _tlSegDrag = null;
 
   window.addEventListener('mouseup', () => {
     if (!_tlSegDrag) return;
-    const { trackIdx } = _tlSegDrag;
+    const { trackIdx, moved, origStart, origEnd } = _tlSegDrag;
+    const ti = trackIdx;
     const track = captionTracks[trackIdx];
     if (track) track.segments.sort((a, b) => a.start - b.start);
     _tlSegDrag = null;
-    renderCaptionLanes();
-    renderSegmentsList();
+
+    if (!moved) {
+      // Simple click (no drag) → seek + scroll to segment in panel
+      if (videoEl) videoEl.currentTime = origStart;
+      switchPanelTab('captions');
+      if (activeCaptionTab !== ti) setActiveCaptionTab(ti);
+      // Rebuild lanes/list (sort may have changed indices)
+      renderCaptionLanes();
+      renderSegmentsList();
+      setTimeout(() => {
+        const trk = captionTracks[ti];
+        if (!trk) return;
+        const realIdx = trk.segments.findIndex(
+          s => s.start === origStart && s.end === origEnd
+        );
+        if (realIdx < 0) return;
+        const segEl = document.getElementById('cc-seg-' + realIdx);
+        if (!segEl) return;
+        const listEl = document.getElementById('cc-segments-list');
+        if (listEl) {
+          const elTop  = segEl.offsetTop;
+          const elBot  = elTop + segEl.offsetHeight;
+          const listH  = listEl.clientHeight;
+          const scrollT = listEl.scrollTop;
+          if (elTop < scrollT || elBot > scrollT + listH) {
+            listEl.scrollTo({ top: elTop - 8, behavior: 'smooth' });
+          }
+        }
+        segEl.classList.remove('cc-seg-flash');
+        void segEl.offsetWidth;
+        segEl.classList.add('cc-seg-flash');
+        segEl.addEventListener('animationend', () => segEl.classList.remove('cc-seg-flash'), { once: true });
+        const ta = segEl.querySelector('.cc-seg-text');
+        if (ta) ta.focus();
+      }, 30);
+    } else {
+      renderCaptionLanes();
+      renderSegmentsList();
+    }
   });
 })();
 
@@ -1085,57 +1117,8 @@ function renderCaptionLanes() {
           containerEl: bar, segEl: el, moved: false };
       });
 
-      // Click to seek AND scroll the segments panel to this segment
-      // Capture start/end times now — the index `si` can shift after a sort.
-      const _segStart = seg.start;
-      const _segEnd   = seg.end;
-      el.addEventListener('click', e => {
-        if (_tlSegDrag?.moved) return;
-        e.stopPropagation();
-        if (videoEl) videoEl.currentTime = _segStart;
-
-        // 1. Make sure the Captions panel tab is visible (user might be on Zones).
-        switchPanelTab('captions');
-
-        // 2. Switch to the correct caption track tab.
-        if (activeCaptionTab !== ti) setActiveCaptionTab(ti);
-
-        // 3. Find the segment row by matching start time (index may have shifted
-        //    due to sort triggered by the preceding mouseup handler).
-        setTimeout(() => {
-          const track = captionTracks[ti];
-          if (!track) return;
-          const realIdx = track.segments.findIndex(
-            s => s.start === _segStart && s.end === _segEnd
-          );
-          if (realIdx < 0) return;
-          // Re-render list if it doesn't already match (tab switch may have done it)
-          const existing = document.getElementById('cc-seg-' + realIdx);
-          if (!existing) renderSegmentsList();
-          setTimeout(() => {
-            const segEl = document.getElementById('cc-seg-' + realIdx);
-            if (!segEl) return;
-            // Scroll the segments list container, not the whole page
-            const listEl = document.getElementById('cc-segments-list');
-            if (listEl) {
-              const elTop    = segEl.offsetTop;
-              const elBot    = elTop + segEl.offsetHeight;
-              const listH    = listEl.clientHeight;
-              const scrollT  = listEl.scrollTop;
-              if (elTop < scrollT || elBot > scrollT + listH) {
-                listEl.scrollTo({ top: elTop - 8, behavior: 'smooth' });
-              }
-            }
-            segEl.classList.remove('cc-seg-flash');
-            void segEl.offsetWidth;
-            segEl.classList.add('cc-seg-flash');
-            segEl.addEventListener('animationend', () => segEl.classList.remove('cc-seg-flash'), { once: true });
-            
-            const ta = segEl.querySelector('.cc-seg-text');
-            if (ta) ta.focus();
-          }, 30);
-        }, 20);
-      });
+      // Click-to-seek is handled in the global mouseup handler (see above)
+      // because body's mousedown calls preventDefault, which suppresses click events.
 
       // Tooltip
       el.addEventListener('mouseenter', e => {

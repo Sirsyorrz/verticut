@@ -997,7 +997,8 @@ let _tlSegDrag = null;
       // Rebuild lanes/list (sort may have changed indices)
       renderCaptionLanes();
       renderSegmentsList();
-      setTimeout(() => {
+      // Use requestAnimationFrame to ensure layout is settled after innerHTML rebuild
+      requestAnimationFrame(() => { requestAnimationFrame(() => {
         const trk = captionTracks[ti];
         if (!trk) return;
         const realIdx = trk.segments.findIndex(
@@ -1006,23 +1007,14 @@ let _tlSegDrag = null;
         if (realIdx < 0) return;
         const segEl = document.getElementById('cc-seg-' + realIdx);
         if (!segEl) return;
-        const listEl = document.getElementById('cc-segments-list');
-        if (listEl) {
-          const elTop  = segEl.offsetTop;
-          const elBot  = elTop + segEl.offsetHeight;
-          const listH  = listEl.clientHeight;
-          const scrollT = listEl.scrollTop;
-          if (elTop < scrollT || elBot > scrollT + listH) {
-            listEl.scrollTo({ top: elTop - 8, behavior: 'smooth' });
-          }
-        }
+        segEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         segEl.classList.remove('cc-seg-flash');
         void segEl.offsetWidth;
         segEl.classList.add('cc-seg-flash');
         segEl.addEventListener('animationend', () => segEl.classList.remove('cc-seg-flash'), { once: true });
         const ta = segEl.querySelector('.cc-seg-text');
         if (ta) ta.focus();
-      }, 30);
+      }); });
     } else {
       renderCaptionLanes();
       renderSegmentsList();

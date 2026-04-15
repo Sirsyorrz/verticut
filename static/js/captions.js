@@ -1050,6 +1050,7 @@ function renderCaptionLanes() {
       const handleL = document.createElement('div');
       handleL.className = 'tl-seg-handle tl-seg-handle-l';
       handleL.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;  // left-button only — don't block middle-pan
         e.stopPropagation(); e.preventDefault();
         _tlSegDrag = { trackIdx: ti, segIdx: si, mode: 'left',
           startX: e.clientX, origStart: seg.start, origEnd: seg.end,
@@ -1060,6 +1061,7 @@ function renderCaptionLanes() {
       const handleR = document.createElement('div');
       handleR.className = 'tl-seg-handle tl-seg-handle-r';
       handleR.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;  // left-button only
         e.stopPropagation(); e.preventDefault();
         _tlSegDrag = { trackIdx: ti, segIdx: si, mode: 'right',
           startX: e.clientX, origStart: seg.start, origEnd: seg.end,
@@ -1076,6 +1078,7 @@ function renderCaptionLanes() {
 
       // Move drag on body
       body.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;  // left-button only
         e.stopPropagation(); e.preventDefault();
         _tlSegDrag = { trackIdx: ti, segIdx: si, mode: 'move',
           startX: e.clientX, origStart: seg.start, origEnd: seg.end,
@@ -1083,23 +1086,51 @@ function renderCaptionLanes() {
       });
 
       // Click to seek AND scroll the segments panel to this segment
+      // Capture start/end times now — the index `si` can shift after a sort.
+      const _segStart = seg.start;
+      const _segEnd   = seg.end;
       el.addEventListener('click', e => {
         if (_tlSegDrag?.moved) return;
         e.stopPropagation();
-        if (videoEl) videoEl.currentTime = seg.start;
-        // Switch to the correct track tab, then scroll to + flash the segment row
-        if (activeCaptionTab !== ti) {
-          setActiveCaptionTab(ti);
-        }
-        // Give the DOM a tick to render if tab just switched
+        if (videoEl) videoEl.currentTime = _segStart;
+
+        // 1. Make sure the Captions panel tab is visible (user might be on Zones).
+        switchPanelTab('captions');
+
+        // 2. Switch to the correct caption track tab.
+        if (activeCaptionTab !== ti) setActiveCaptionTab(ti);
+
+        // 3. Find the segment row by matching start time (index may have shifted
+        //    due to sort triggered by the preceding mouseup handler).
         setTimeout(() => {
-          const segEl = document.getElementById('cc-seg-' + si);
-          if (!segEl) return;
-          segEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          segEl.classList.remove('cc-seg-flash');
-          void segEl.offsetWidth; // reflow to restart animation
-          segEl.classList.add('cc-seg-flash');
-          segEl.addEventListener('animationend', () => segEl.classList.remove('cc-seg-flash'), { once: true });
+          const track = captionTracks[ti];
+          if (!track) return;
+          const realIdx = track.segments.findIndex(
+            s => s.start === _segStart && s.end === _segEnd
+          );
+          if (realIdx < 0) return;
+          // Re-render list if it doesn't already match (tab switch may have done it)
+          const existing = document.getElementById('cc-seg-' + realIdx);
+          if (!existing) renderSegmentsList();
+          setTimeout(() => {
+            const segEl = document.getElementById('cc-seg-' + realIdx);
+            if (!segEl) return;
+            // Scroll the segments list container, not the whole page
+            const listEl = document.getElementById('cc-segments-list');
+            if (listEl) {
+              const elTop    = segEl.offsetTop;
+              const elBot    = elTop + segEl.offsetHeight;
+              const listH    = listEl.clientHeight;
+              const scrollT  = listEl.scrollTop;
+              if (elTop < scrollT || elBot > scrollT + listH) {
+                listEl.scrollTo({ top: elTop - 8, behavior: 'smooth' });
+              }
+            }
+            segEl.classList.remove('cc-seg-flash');
+            void segEl.offsetWidth;
+            segEl.classList.add('cc-seg-flash');
+            segEl.addEventListener('animationend', () => segEl.classList.remove('cc-seg-flash'), { once: true });
+          }, 30);
         }, 20);
       });
 

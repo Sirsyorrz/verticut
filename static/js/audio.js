@@ -161,6 +161,7 @@ function renderAudioTracks() {
     const hl = document.createElement('div');
     hl.className = 'tl-bar-handle tl-bar-handle-l';
     hl.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;  // left-button only
       e.preventDefault(); e.stopPropagation();
       _audioBarDrag = {
         trackIdx: i, mode: 'left', startX: e.clientX,
@@ -185,6 +186,7 @@ function renderAudioTracks() {
     const hr = document.createElement('div');
     hr.className = 'tl-bar-handle tl-bar-handle-r';
     hr.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;  // left-button only
       e.preventDefault(); e.stopPropagation();
       _audioBarDrag = {
         trackIdx: i, mode: 'right', startX: e.clientX,

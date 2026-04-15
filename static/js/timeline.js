@@ -155,9 +155,8 @@ let _tlSectionResizeStartY = 0;
 let _tlSectionResizeStartH = 0;
 
 // ── Middle-mouse pan state ────────────────────────────────────────────────────
-let _tlMmPanning    = false;
-let _tlMmPanStartX  = 0;
-let _tlMmPanStartOff = 0;
+let _tlMmPanning  = false;
+let _tlMmPanLastX = 0;  // incremental: updated each mousemove frame
 
 // ── All new event wiring — runs after DOM is ready ────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -186,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Video in-handle ───────────────────────────────────────────────────────
   if (handleIn) {
     handleIn.addEventListener('mousedown', e => {
-      if (!videoEl) return;
+      if (e.button !== 0 || !videoEl) return;  // left-button only
       e.preventDefault(); e.stopPropagation();
       tlDragging = 'in';
     });
@@ -195,7 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Video out-handle ──────────────────────────────────────────────────────
   if (handleOut) {
     handleOut.addEventListener('mousedown', e => {
-      if (!videoEl) return;
+      if (e.button !== 0 || !videoEl) return;  // left-button only
       e.preventDefault(); e.stopPropagation();
       tlDragging = 'out';
     });
@@ -204,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Video background: click/drag to seek ─────────────────────────────────
   if (videoBg) {
     videoBg.addEventListener('mousedown', e => {
-      if (!videoEl || !videoEl.duration) return;
+      if (e.button !== 0 || !videoEl || !videoEl.duration) return;  // left-button only
       e.preventDefault();
       tlDragging = 'head';
       const t = tlClientToTime(e.clientX);
@@ -215,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Video bar body: seek within clip ─────────────────────────────────────
   if (barBody) {
     barBody.addEventListener('mousedown', e => {
-      if (!videoEl || !videoEl.duration) return;
+      if (e.button !== 0 || !videoEl || !videoEl.duration) return;  // left-button only
       e.preventDefault(); e.stopPropagation();
       tlDragging = 'head';
       const t = tlClientToTime(e.clientX);
@@ -248,19 +247,21 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ── Middle-mouse pan ───────────────────────────────────────────────────────
-  if (tracksArea) {
-    // prevent the default middle-click scroll/autoscroll behaviour
-    tracksArea.addEventListener('mousedown', e => {
-      if (e.button !== 1) return;
-      if (!videoEl || !videoEl.duration || tlZoom <= 1) return;
-      e.preventDefault();
-      _tlMmPanning     = true;
-      _tlMmPanStartX   = e.clientX;
-      _tlMmPanStartOff = tlOffset;
-      tracksArea.classList.add('tl-panning');
-    });
+  // Listen on window so child stopPropagation() calls never block it.
+  window.addEventListener('mousedown', e => {
+    if (e.button !== 1) return;
+    if (!videoEl || !videoEl.duration || tlZoom <= 1) return;
+    // Only activate when the pointer is inside the tracks area.
+    const ta = document.getElementById('tl-tracks-area');
+    if (!ta || !ta.contains(e.target)) return;
+    e.preventDefault();
+    _tlMmPanning  = true;
+    _tlMmPanLastX = e.clientX;
+    ta.classList.add('tl-panning');
+  });
 
-    // also swallow the middle-click context menu that some OSes show
+  // Swallow the middle-click context menu / autoscroll icon some OSes show.
+  if (tracksArea) {
     tracksArea.addEventListener('auxclick', e => {
       if (e.button === 1) e.preventDefault();
     });
@@ -269,9 +270,11 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('mousemove', e => {
     if (!_tlMmPanning || !videoEl || !videoEl.duration) return;
     const r       = (document.getElementById('tl-video-wrap') || tracksArea).getBoundingClientRect();
-    const deltaX  = e.clientX - _tlMmPanStartX;
-    const deltaFrac = deltaX / r.width;        // positive = dragged right = earlier in timeline
-    tlOffset = _tlMmPanStartOff - deltaFrac / tlZoom;
+    // Incremental delta: no dead-zone when clamped at timeline edges.
+    const deltaX    = e.clientX - _tlMmPanLastX;
+    _tlMmPanLastX   = e.clientX;               // advance anchor for next frame
+    const deltaFrac = deltaX / r.width;
+    tlOffset -= deltaFrac / tlZoom;            // drag right → earlier in timeline
     tlClampOffset();
     updateTL();
     renderCaptionLanes();

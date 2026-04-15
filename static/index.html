@@ -59,6 +59,7 @@
           <div id="draw-guide"></div>
         </div>
       </div>
+
     </div>
 
     <div class="resize-handle" id="rh1"></div>
@@ -147,23 +148,30 @@
         <div class="tl-row tl-row-video">
           <div class="tl-row-label">VIDEO</div>
           <div class="tl-row-content">
-            <div class="tl-wrap">
-              <div class="tl-track" id="tl-track">
-                <div class="tl-mask tl-mask-l" id="tl-mask-l"></div>
-                <div class="tl-active" id="tl-active"></div>
-                <div class="tl-mask tl-mask-r" id="tl-mask-r"></div>
-                <div class="tl-handle tl-h-in" id="tl-h-in" title="Trim start — drag to set in-point"></div>
-                <div class="tl-handle tl-h-out" id="tl-h-out" title="Trim end — drag to set out-point"></div>
-                <div class="tl-head" id="tl-head"></div>
-              </div>
-              <div class="tl-info">
-                <span class="tl-time" id="tl-in-lbl">0:00</span>
-                <span class="tl-clip-dur" id="tl-clip-dur"></span>
-                <span class="tl-zoom-label" id="tl-zoom-label"></span>
-                <button class="tl-zoom-reset" id="tl-zoom-reset" onclick="tlZoomReset()" style="display:none" title="Reset zoom">1:1</button>
-                <span class="tl-time" id="tl-out-lbl">0:00</span>
+            <!-- Bar-style video track -->
+            <div class="tl-video-wrap" id="tl-video-wrap">
+              <!-- Full-duration background: click or drag to seek -->
+              <div class="tl-video-bg" id="tl-video-bg"></div>
+              <!-- Active clip bar: trimStart → trimEnd, with drag handles -->
+              <div class="tl-video-bar" id="tl-video-bar">
+                <div class="tl-bar-handle tl-bar-handle-l" id="tl-h-in" title="Drag to set in-point"></div>
+                <div class="tl-bar-body" id="tl-bar-body"></div>
+                <div class="tl-bar-handle tl-bar-handle-r" id="tl-h-out" title="Drag to set out-point"></div>
               </div>
             </div>
+            <div class="tl-info">
+              <span class="tl-time" id="tl-in-lbl">0:00</span>
+              <span class="tl-clip-dur" id="tl-clip-dur"></span>
+              <span class="tl-zoom-label" id="tl-zoom-label"></span>
+              <button class="tl-zoom-reset" id="tl-zoom-reset" onclick="tlZoomReset()" style="display:none" title="Reset zoom">1:1</button>
+              <span class="tl-time" id="tl-out-lbl">0:00</span>
+            </div>
+            <!-- Hidden shims: IDs still needed by JS — keep but invisible -->
+            <div id="tl-track"  style="display:none"></div>
+            <div id="tl-mask-l" style="display:none"></div>
+            <div id="tl-mask-r" style="display:none"></div>
+            <div id="tl-active" style="display:none"></div>
+            <div id="tl-head"   style="display:none"></div>
           </div>
         </div>
 

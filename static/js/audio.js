@@ -70,6 +70,35 @@ function syncTrackEls() {
   });
 }
 
+// ── Per-audio-track drag state ───────────────────────────────────────────────
+let _audioBarDrag = null;
+// { trackIdx, mode:'left'|'right', startX, origTrim, containerEl, barEl }
+
+(function _initAudioBarDrag() {
+  window.addEventListener('mousemove', e => {
+    if (!_audioBarDrag || !videoEl || !videoEl.duration) return;
+    const { trackIdx, mode, startX, origTrim, containerEl, barEl } = _audioBarDrag;
+    const t = audioTracks[trackIdx];
+    if (!t) return;
+
+    const dur    = videoEl.duration;
+    const rect   = containerEl.getBoundingClientRect();
+    const deltaX = e.clientX - startX;
+    const deltaFrac = deltaX / rect.width;
+    const deltaTime = (deltaFrac / tlZoom) * dur;
+    const MIN_DUR = 0.1;
+
+    if (mode === 'left') {
+      t.trimStart = Math.max(0, Math.min((t.trimEnd ?? dur) - MIN_DUR, origTrim + deltaTime));
+    } else {
+      t.trimEnd = Math.max((t.trimStart ?? 0) + MIN_DUR, Math.min(dur, origTrim + deltaTime));
+    }
+    if (typeof renderAudioLanes === 'function') renderAudioLanes();
+  });
+
+  window.addEventListener('mouseup', () => { _audioBarDrag = null; });
+})();
+
 function renderAudioTracks() {
   const bar = document.getElementById('audio-tracks-bar');
   if (typeof updateCaptionTrackSelector === 'function') updateCaptionTrackSelector();
@@ -78,34 +107,120 @@ function renderAudioTracks() {
   bar.innerHTML = '';
   vizCanvases = [];
 
-  // Each audio track = a tl-row (label + content) matching the video row
+  const TRACK_COLORS = [
+    ['rgba(0,245,160,', '#00f5a0'],
+    ['rgba(59,158,255,', '#3B9EFF'],
+    ['rgba(255,214,10,', '#FFD60A'],
+    ['rgba(255,107,53,', '#FF6B35'],
+    ['rgba(199,125,255,', '#C77DFF'],
+    ['rgba(255,77,109,',  '#FF4D6D'],
+  ];
+
   audioTracks.forEach((t, i) => {
+    const [rgba, hex] = TRACK_COLORS[i % TRACK_COLORS.length];
+
     const row = document.createElement('div');
     row.className = 'tl-row tl-row-audio';
 
+    // Label column: color dot + track name (click to mute)
     const lbl = document.createElement('div');
     lbl.className = 'tl-row-label';
-    lbl.textContent = t.label || `Audio ${i + 1}`;
+    const dot = document.createElement('span');
+    dot.className = 'tl-lane-dot';
+    dot.style.background = t.muted ? '#555' : hex;
+    dot.style.flexShrink = '0';
+    const muteBtn = document.createElement('span');
+    muteBtn.className = 'tl-audio-mute-btn';
+    muteBtn.textContent = t.label || ('Audio ' + (i + 1));
+    muteBtn.style.opacity = t.muted ? '0.4' : '1';
+    muteBtn.title = (t.codec || '') + ' ' + t.channels + 'ch — click to ' + (t.muted ? 'unmute' : 'mute');
+    muteBtn.addEventListener('click', e => { e.stopPropagation(); toggleAudioTrackMute(t.idx); });
+    lbl.appendChild(dot);
+    lbl.appendChild(muteBtn);
 
+    // Content column: relative container for the time-positioned bar
     const content = document.createElement('div');
-    content.className = 'tl-row-content tl-audio-content';
+    content.className = 'tl-row-content tl-audio-track-wrap';
+    content.dataset.audioIdx = i;
 
-    const chip = document.createElement('div');
-    chip.className = 'audio-chip' + (t.muted ? ' muted' : '');
-    chip.title = `${t.codec} \u00b7 ${t.channels}ch${t.layout ? ' \u00b7 ' + t.layout : ''}\nClick to ${t.muted ? 'unmute' : 'mute'}`;
-    chip.innerHTML = `<span class="audio-chip-icon">${t.muted ? '\ud83d\udd07' : '\ud83d\udd0a'}</span>${t.label}`;
-    chip.addEventListener('click', () => toggleAudioTrackMute(t.idx));
+    // Full-duration background
+    const bg = document.createElement('div');
+    bg.className = 'tl-video-bg';
+    bg.style.background = rgba + '0.06)';
+    bg.style.borderColor = rgba + '0.15)';
 
+    // Active trim bar with handles
+    const trackBar = document.createElement('div');
+    trackBar.className = 'tl-audio-bar' + (t.muted ? ' muted' : '');
+    trackBar.dataset.audioIdx = i;
+    trackBar.style.background = rgba + (t.muted ? '0.12)' : '0.25)');
+    trackBar.style.borderColor = rgba + (t.muted ? '0.2)' : '0.6)');
+    trackBar.style.setProperty('--bar-color', rgba + '0.5)');
+
+    // Left handle
+    const hl = document.createElement('div');
+    hl.className = 'tl-bar-handle tl-bar-handle-l';
+    hl.addEventListener('mousedown', e => {
+      e.preventDefault(); e.stopPropagation();
+      _audioBarDrag = {
+        trackIdx: i, mode: 'left', startX: e.clientX,
+        origTrim: t.trimStart ?? 0,
+        containerEl: content, barEl: trackBar
+      };
+    });
+
+    // Body (click to toggle mute)
+    const body = document.createElement('div');
+    body.className = 'tl-bar-body';
+    body.style.cursor = 'default';
+
+    // Realtime viz canvas overlaid on bar
     const cv = document.createElement('canvas');
     cv.className = 'audio-viz-canvas';
     cv.dataset.track = i;
     vizCanvases.push(cv);
+    body.appendChild(cv);
 
-    content.appendChild(chip);
-    content.appendChild(cv);
+    // Right handle
+    const hr = document.createElement('div');
+    hr.className = 'tl-bar-handle tl-bar-handle-r';
+    hr.addEventListener('mousedown', e => {
+      e.preventDefault(); e.stopPropagation();
+      _audioBarDrag = {
+        trackIdx: i, mode: 'right', startX: e.clientX,
+        origTrim: t.trimEnd ?? (videoEl ? videoEl.duration : 0),
+        containerEl: content, barEl: trackBar
+      };
+    });
+
+    trackBar.appendChild(hl);
+    trackBar.appendChild(body);
+    trackBar.appendChild(hr);
+    content.appendChild(bg);
+    content.appendChild(trackBar);
     row.appendChild(lbl);
     row.appendChild(content);
     bar.appendChild(row);
+  });
+
+  renderAudioLanes();
+}
+
+// Reposition all audio bars using current zoom/offset and per-track trim
+function renderAudioLanes() {
+  if (!videoEl || !videoEl.duration) return;
+  const dur = videoEl.duration;
+  document.querySelectorAll('.tl-audio-bar').forEach(bar => {
+    const i = parseInt(bar.dataset.audioIdx ?? 0);
+    const t = audioTracks[i];
+    if (!t) return;
+    const tStart   = t.trimStart ?? 0;
+    const tEnd     = t.trimEnd   ?? dur;
+    const leftPct  = Math.max(0,   tlTimeToLeft(tStart));
+    const rightPct = Math.min(100, tlTimeToLeft(tEnd));
+    const widthPct = Math.max(0,   rightPct - leftPct);
+    bar.style.left  = leftPct  + '%';
+    bar.style.width = widthPct + '%';
   });
 }
 function toggleAudioTrackMute(idx) {

@@ -270,9 +270,15 @@ window.addEventListener('mousemove', e => {
     } else if (tlDragging === 'in') {
       trimStart = Math.max(0, Math.min((trimEnd ?? dur) - 0.1, t));
       if (videoEl.currentTime < trimStart) videoEl.currentTime = trimStart;
+      // Sync all audio tracks to the new global in-point
+      audioTracks.forEach(tr => { tr.trimStart = trimStart; });
+      if (typeof renderAudioLanes === 'function') renderAudioLanes();
     } else if (tlDragging === 'out') {
       trimEnd = Math.max(trimStart + 0.1, Math.min(dur, t));
       if (videoEl.currentTime > trimEnd) videoEl.currentTime = trimEnd;
+      // Sync all audio tracks to the new global out-point
+      audioTracks.forEach(tr => { tr.trimEnd = trimEnd; });
+      if (typeof renderAudioLanes === 'function') renderAudioLanes();
     }
     return;
   }

@@ -78,7 +78,7 @@ async function handleFile(file) {
     document.getElementById('file-info-label').textContent = `${data.width}×${data.height} · ${fmt(data.duration)}`;
     startLoop();
     addAutoGameplayZone();
-    audioTracks = (data.audio_tracks || []).map(t => ({ ...t, muted: false }));
+    audioTracks = (data.audio_tracks || []).map(t => ({ ...t, muted: false, trimStart: 0, trimEnd: null }));
     setupTrackAudioEls();
     renderAudioTracks();
     renderCaptionLanes();

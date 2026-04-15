@@ -892,66 +892,175 @@ function setActiveCaptionTab(i) {
 // ── Caption lanes on timeline ──────────────────────────────────────────────────
 let _laneTooltipEl = null;
 
+// ── Caption lane drag / resize state ─────────────────────────────────────────
+let _tlSegDrag = null;
+// { trackIdx, segIdx, mode:'move'|'left'|'right',
+//   startX, origStart, origEnd, containerEl, segEl, moved }
+
+(function _initCapSegDrag() {
+  window.addEventListener('mousemove', e => {
+    if (!_tlSegDrag || !videoEl) return;
+    const { trackIdx, segIdx, mode, startX, origStart, origEnd, containerEl, segEl } = _tlSegDrag;
+    const track = captionTracks[trackIdx];
+    if (!track) return;
+    const seg = track.segments[segIdx];
+    if (!seg) return;
+
+    _tlSegDrag.moved = true;
+    segEl.classList.add('dragging');
+    if (_laneTooltipEl) _laneTooltipEl.style.display = 'none';
+
+    const dur = videoEl.duration;
+    const rect = containerEl.getBoundingClientRect();
+    const deltaX    = e.clientX - startX;
+    const deltaFrac = deltaX / rect.width;
+    const deltaTime = (deltaFrac / tlZoom) * dur;
+    const MIN_DUR   = 0.05;
+
+    if (mode === 'move') {
+      const segDur = origEnd - origStart;
+      let ns = Math.max(0, origStart + deltaTime);
+      let ne = ns + segDur;
+      if (ne > dur) { ne = dur; ns = Math.max(0, dur - segDur); }
+      seg.start = ns; seg.end = ne;
+    } else if (mode === 'left') {
+      seg.start = Math.max(0, Math.min(origStart + deltaTime, origEnd - MIN_DUR));
+    } else {
+      seg.end   = Math.max(origStart + MIN_DUR, Math.min(origEnd + deltaTime, dur));
+    }
+
+    // Update DOM directly — no full re-render during drag
+    const leftPct  = tlTimeToLeft(seg.start);
+    const widthPct = Math.max(0.3, tlTimeToLeft(seg.end) - leftPct);
+    segEl.style.left  = leftPct + '%';
+    segEl.style.width = widthPct + '%';
+
+    // Live seek to segment start
+    if (videoEl) videoEl.currentTime = seg.start;
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!_tlSegDrag) return;
+    const { trackIdx } = _tlSegDrag;
+    const track = captionTracks[trackIdx];
+    if (track) track.segments.sort((a, b) => a.start - b.start);
+    _tlSegDrag = null;
+    renderCaptionLanes();
+    renderSegmentsList();
+  });
+})();
+
 function renderCaptionLanes() {
+  // Don't destroy DOM during an active drag — the drag handler updates in place
+  if (_tlSegDrag) return;
+
   const container = document.getElementById('tl-caption-lanes');
   if (!container) return;
   container.innerHTML = '';
   if (!captionTracks.length || !videoEl || !videoEl.duration) return;
 
-  const dur = videoEl.duration;
-
-  captionTracks.forEach(track => {
+  captionTracks.forEach((track, ti) => {
     if (!track.segments?.length) return;
 
     const lane = document.createElement('div');
     lane.className = 'tl-caption-lane';
 
-    // Label
+    // Label column
     const label = document.createElement('div');
     label.className = 'tl-lane-label';
-    label.innerHTML = `<span class="tl-lane-dot" style="background:${track.color}"></span><span style="font-size:0.52rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(track.label)}</span>`;
+    const dot = document.createElement('span');
+    dot.className = 'tl-lane-dot';
+    dot.style.background = track.color;
+    dot.style.flexShrink = '0';
+    const lname = document.createElement('span');
+    lname.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    lname.textContent = track.label;
+    label.appendChild(dot);
+    label.appendChild(lname);
     lane.appendChild(label);
 
-    // Track bar
+    // Track bar (time-positioned segments live here)
     const bar = document.createElement('div');
     bar.className = 'tl-lane-track';
 
-    track.segments.forEach(seg => {
-      // Use tlTimeToLeft so lanes zoom/pan in sync with the scrub bar
+    track.segments.forEach((seg, si) => {
       const leftPct  = tlTimeToLeft(seg.start);
       const rightPct = tlTimeToLeft(seg.end);
-      const widthPct = Math.max(0.15, rightPct - leftPct);
-
-      // Skip segments fully outside the visible window
+      const widthPct = Math.max(0.3, rightPct - leftPct);
       if (leftPct > 100 || rightPct < 0) return;
 
       const el = document.createElement('div');
       el.className = 'tl-caption-seg';
-      el.style.cssText = `left:${leftPct}%;width:${widthPct}%;background:${track.color};`;
+      el.style.left       = leftPct + '%';
+      el.style.width      = widthPct + '%';
+      el.style.background = track.color;
 
-      // Click: seek to segment start
+      // ── Left resize handle ──────────────────────────────────────────────
+      const handleL = document.createElement('div');
+      handleL.className = 'tl-seg-handle tl-seg-handle-l';
+      handleL.addEventListener('mousedown', e => {
+        e.stopPropagation(); e.preventDefault();
+        _tlSegDrag = { trackIdx: ti, segIdx: si, mode: 'left',
+          startX: e.clientX, origStart: seg.start, origEnd: seg.end,
+          containerEl: bar, segEl: el, moved: false };
+      });
+
+      // ── Right resize handle ─────────────────────────────────────────────
+      const handleR = document.createElement('div');
+      handleR.className = 'tl-seg-handle tl-seg-handle-r';
+      handleR.addEventListener('mousedown', e => {
+        e.stopPropagation(); e.preventDefault();
+        _tlSegDrag = { trackIdx: ti, segIdx: si, mode: 'right',
+          startX: e.clientX, origStart: seg.start, origEnd: seg.end,
+          containerEl: bar, segEl: el, moved: false };
+      });
+
+      // ── Body (grab to move) ─────────────────────────────────────────────
+      const body = document.createElement('div');
+      body.className = 'tl-seg-body';
+      const segLabel = document.createElement('span');
+      segLabel.className = 'tl-seg-label';
+      segLabel.textContent = seg.text?.trim().slice(0, 40) || '';
+      body.appendChild(segLabel);
+
+      // Move drag on body
+      body.addEventListener('mousedown', e => {
+        e.stopPropagation(); e.preventDefault();
+        _tlSegDrag = { trackIdx: ti, segIdx: si, mode: 'move',
+          startX: e.clientX, origStart: seg.start, origEnd: seg.end,
+          containerEl: bar, segEl: el, moved: false };
+      });
+
+      // Click to seek (only if no drag occurred)
       el.addEventListener('click', e => {
+        if (_tlSegDrag?.moved) return;
         e.stopPropagation();
         if (videoEl) videoEl.currentTime = seg.start;
       });
 
-      // Tooltip on hover
+      // Tooltip
       el.addEventListener('mouseenter', e => {
+        if (_tlSegDrag) return;
         if (!_laneTooltipEl) {
           _laneTooltipEl = document.createElement('div');
           _laneTooltipEl.className = 'tl-caption-seg-tooltip';
           document.body.appendChild(_laneTooltipEl);
         }
         const text = seg.text?.trim() || '';
-        _laneTooltipEl.textContent = `${fmt(seg.start)} - ${fmt(seg.end)}  ${text.length > 60 ? text.slice(0,57) + '...' : text}`;
+        _laneTooltipEl.textContent =
+          fmt(seg.start) + ' - ' + fmt(seg.end) + '  ' +
+          (text.length > 60 ? text.slice(0, 57) + '...' : text);
         _laneTooltipEl.style.display = 'block';
         _positionLaneTooltip(e);
       });
-      el.addEventListener('mousemove', _positionLaneTooltip);
+      el.addEventListener('mousemove', e => { if (!_tlSegDrag) _positionLaneTooltip(e); });
       el.addEventListener('mouseleave', () => {
         if (_laneTooltipEl) _laneTooltipEl.style.display = 'none';
       });
 
+      el.appendChild(handleL);
+      el.appendChild(body);
+      el.appendChild(handleR);
       bar.appendChild(el);
     });
 
@@ -959,13 +1068,6 @@ function renderCaptionLanes() {
     container.appendChild(lane);
   });
 }
-
-function _positionLaneTooltip(e) {
-  if (!_laneTooltipEl) return;
-  _laneTooltipEl.style.left = (e.clientX + 12) + 'px';
-  _laneTooltipEl.style.top  = (e.clientY - 32) + 'px';
-}
-
 function renderSegmentsList() {
   renderTrackTabs();
   const container = document.getElementById('cc-segments-list');

@@ -45,6 +45,10 @@ function registerRoutes(app, outputsDir, whisperDir) {
 
   // ── POST /whisper_download ─────────────────────────────────────────────────
   app.post('/whisper_download', (req, res) => {
+    const reset = req.body?.reset === true;
+    if (reset && fs.existsSync(whisperDir)) {
+      fs.rmSync(whisperDir, { recursive: true, force: true });
+    }
     downloadWhisper(whisperDir);
     res.json({ ok: true });
   });

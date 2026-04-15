@@ -31,13 +31,23 @@ function findWhisperExe(whisperDir) {
   if (process.platform !== 'win32') return null;
 
   const candidates = [
-    whisperDir && path.join(whisperDir, 'faster-whisper.exe'), // downloaded to userData
+    whisperDir && path.join(whisperDir, 'faster-whisper.exe'), // flat extract (legacy)
     path.join(__dirname, '..', 'resources', 'whisper', 'faster-whisper.exe'), // dev fallback
   ].filter(Boolean);
 
   for (const p of candidates) {
     if (fs.existsSync(p)) return p;
   }
+
+  // Check pointer file written when exe is inside a subfolder
+  if (whisperDir) {
+    const ptrFile = path.join(whisperDir, 'exe-path.txt');
+    if (fs.existsSync(ptrFile)) {
+      const ptr = fs.readFileSync(ptrFile, 'utf8').trim();
+      if (fs.existsSync(ptr)) return ptr;
+    }
+  }
+
   return null;
 }
 
@@ -577,15 +587,27 @@ async function downloadWhisper(whisperDir) {
     } catch {
       throw new Error('7zip-bin not available — cannot extract whisper archive');
     }
-    const result = spawnSync(path7za, ['e', archivePath, `-o${whisperDir}`, '-y'], { stdio: 'pipe' });
+    // Use 'x' not 'e' — preserves subdirectory structure (_xxl_data/, etc.) required by the exe
+    const result = spawnSync(path7za, ['x', archivePath, `-o${whisperDir}`, '-y'], { stdio: 'pipe' });
     if (result.status !== 0) throw new Error('7z extraction failed');
 
-    // 5. Rename exe if needed
+    // 5. Find the exe — do NOT move it, _xxl_data/ must stay alongside it
     const exePath = path.join(whisperDir, 'faster-whisper.exe');
     if (!fs.existsSync(exePath)) {
-      const found = fs.readdirSync(whisperDir).find(f => f.toLowerCase().endsWith('.exe'));
-      if (found) fs.renameSync(path.join(whisperDir, found), exePath);
-      else throw new Error('No .exe found after extraction');
+      // Search one level deep (archive may extract into a subfolder)
+      let found = null;
+      for (const entry of fs.readdirSync(whisperDir)) {
+        const full = path.join(whisperDir, entry);
+        if (fs.statSync(full).isDirectory()) {
+          const sub = fs.readdirSync(full).find(f => f.toLowerCase().endsWith('.exe'));
+          if (sub) { found = path.join(full, sub); break; }
+        } else if (entry.toLowerCase().endsWith('.exe')) {
+          found = full; break;
+        }
+      }
+      if (!found) throw new Error('No .exe found after extraction');
+      // Write a pointer file so findWhisperExe() can locate it regardless of subfolder name
+      fs.writeFileSync(path.join(whisperDir, 'exe-path.txt'), found, 'utf8');
     }
 
     try { fs.unlinkSync(archivePath); } catch {}

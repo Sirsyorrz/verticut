@@ -312,7 +312,27 @@ async function generateCaptions() {
       clearInterval(captionPollTimer); captionPollTimer = null;
       btn.disabled = false;
 
-      if (!pd.tracks) { setCaptionStatus('error', pd.error || 'Transcription failed'); return; }
+      if (!pd.tracks) {
+        const errMsg = pd.error || 'Transcription failed';
+        setCaptionStatus('error', errMsg);
+        // Corrupted whisper install — offer re-download
+        if (errMsg.includes('python3') || errMsg.includes('LoadLibrary') || errMsg.includes('PYI-')) {
+          const redownloadModal = document.getElementById('whisper-download-modal');
+          const dlBtn   = document.getElementById('whisper-dl-btn');
+          const dlStatus = document.getElementById('whisper-dl-status');
+          if (redownloadModal) {
+            if (dlStatus) dlStatus.innerHTML =
+              `<span>\u274c Captions engine is corrupted or incomplete.</span><br><small style="opacity:0.6">Click below to clear and re-download.</small>`;
+            if (dlBtn) {
+              dlBtn.textContent = 'Re-download (clear & retry)';
+              dlBtn.disabled = false;
+              dlBtn.onclick = () => startWhisperDownload(true);
+            }
+            redownloadModal.style.display = 'flex';
+          }
+        }
+        return;
+      }
 
       // Merge results into captionTracks - replace same trackIdx, append new
       const prevLen = captionTracks.length;
@@ -383,17 +403,21 @@ function showWhisperDownloadPrompt() {
   if (el) el.style.display = 'flex';
 }
 
-async function startWhisperDownload() {
+async function startWhisperDownload(reset = false) {
   const modal   = document.getElementById('whisper-download-modal');
   const dlBtn   = document.getElementById('whisper-dl-btn');
   const dlStatus = document.getElementById('whisper-dl-status');
   const dlBar   = document.getElementById('whisper-dl-bar');
 
   if (dlBtn)    dlBtn.disabled = true;
-  if (dlStatus) dlStatus.textContent = 'Starting download...';
+  if (dlStatus) dlStatus.textContent = reset ? 'Clearing old files…' : 'Starting download...';
 
   try {
-    await fetch(`${API}/whisper_download`, { method: 'POST' });
+    await fetch(`${API}/whisper_download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reset }),
+    });
   } catch {
     if (dlStatus) dlStatus.textContent = 'Could not reach server';
     if (dlBtn)    dlBtn.disabled = false;
@@ -414,8 +438,13 @@ async function startWhisperDownload() {
       toast('✅ Captions ready! Click Generate to transcribe.');
     } else if (s.state === 'error') {
       clearInterval(_whisperDlPollTimer); _whisperDlPollTimer = null;
-      if (dlStatus) dlStatus.textContent = '\u274c ' + s.message;
-      if (dlBtn)    dlBtn.disabled = false;
+      if (dlStatus) dlStatus.innerHTML =
+        `<span>\u274c ${s.message}</span><br><small style="opacity:0.6">If this keeps happening, try re-downloading to clear corrupted files.</small>`;
+      if (dlBtn) {
+        dlBtn.disabled = false;
+        dlBtn.textContent = 'Re-download (clear & retry)';
+        dlBtn.onclick = () => startWhisperDownload(true);
+      }
     }
   }, 800);
 }

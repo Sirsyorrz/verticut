@@ -70,6 +70,9 @@ function applyPreset(preset) {
     return z;
   });
   selectedZoneId = null; colorIdx = zones.length;
+  // Restore hint field if saved with this preset
+  const hintEl = document.getElementById('cc-prompt');
+  if (hintEl && preset.captionHint !== undefined) hintEl.value = preset.captionHint;
   renderZonesList();
   closePresetsMenu();
   toast(`Applied "${preset.name}" — ${preset.zones.length} zone${preset.zones.length !== 1 ? 's' : ''} loaded`);
@@ -134,6 +137,7 @@ function updatePreset(gameId, presetId) {
   const p = g.presets.find(p => p.id === presetId);
   if (!p) return;
   p.zones = serializeZones();
+  p.captionHint = document.getElementById('cc-prompt')?.value?.trim() || '';
   p.updatedAt = Date.now();
   storeGameGroups(groups);
   _confirmAction = null;
@@ -289,7 +293,8 @@ function confirmSavePreset() {
   closePresetModal();
   const preset = {
     id: Date.now().toString() + Math.random().toString(36).slice(2),
-    name, createdAt: Date.now(), zones: serializeZones()
+    name, createdAt: Date.now(), zones: serializeZones(),
+    captionHint: document.getElementById('cc-prompt')?.value?.trim() || ''
   };
   group.presets.push(preset);
   storeGameGroups(groups);

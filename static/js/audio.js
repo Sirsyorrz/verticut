@@ -78,43 +78,36 @@ function renderAudioTracks() {
   bar.innerHTML = '';
   vizCanvases = [];
 
-  const chipRow = document.createElement('div');
-  chipRow.className = 'audio-tracks-row';
-  const lbl = document.createElement('span');
-  lbl.className = 'audio-tracks-label';
-  lbl.textContent = 'Audio';
-  chipRow.appendChild(lbl);
-
-  audioTracks.forEach(t => {
-    const chip = document.createElement('div');
-    chip.className = 'audio-chip' + (t.muted ? ' muted' : '');
-    chip.title = `${t.codec} · ${t.channels}ch${t.layout ? ' · ' + t.layout : ''}\nClick to ${t.muted ? 'unmute' : 'mute'}`;
-    chip.innerHTML = `<span class="audio-chip-icon">${t.muted ? '🔇' : '🔊'}</span>${t.label}`;
-    chip.addEventListener('click', () => toggleAudioTrackMute(t.idx));
-    chipRow.appendChild(chip);
-  });
-  bar.appendChild(chipRow);
-
-  const vizWrapper = document.createElement('div');
-  vizWrapper.className = 'audio-viz-rows';
-
+  // Each audio track = a tl-row (label + content) matching the video row
   audioTracks.forEach((t, i) => {
     const row = document.createElement('div');
-    row.className = 'audio-viz-row';
-    const rowLbl = document.createElement('span');
-    rowLbl.className = 'audio-viz-label';
-    rowLbl.textContent = t.label;
-    rowLbl.style.color = t.muted ? 'rgba(255,80,80,0.5)' : 'var(--text-dim)';
+    row.className = 'tl-row tl-row-audio';
+
+    const lbl = document.createElement('div');
+    lbl.className = 'tl-row-label';
+    lbl.textContent = t.label || `Audio ${i + 1}`;
+
+    const content = document.createElement('div');
+    content.className = 'tl-row-content tl-audio-content';
+
+    const chip = document.createElement('div');
+    chip.className = 'audio-chip' + (t.muted ? ' muted' : '');
+    chip.title = `${t.codec} \u00b7 ${t.channels}ch${t.layout ? ' \u00b7 ' + t.layout : ''}\nClick to ${t.muted ? 'unmute' : 'mute'}`;
+    chip.innerHTML = `<span class="audio-chip-icon">${t.muted ? '\ud83d\udd07' : '\ud83d\udd0a'}</span>${t.label}`;
+    chip.addEventListener('click', () => toggleAudioTrackMute(t.idx));
+
     const cv = document.createElement('canvas');
     cv.className = 'audio-viz-canvas';
     cv.dataset.track = i;
     vizCanvases.push(cv);
-    row.appendChild(rowLbl); row.appendChild(cv);
-    vizWrapper.appendChild(row);
-  });
-  bar.appendChild(vizWrapper);
-}
 
+    content.appendChild(chip);
+    content.appendChild(cv);
+    row.appendChild(lbl);
+    row.appendChild(content);
+    bar.appendChild(row);
+  });
+}
 function toggleAudioTrackMute(idx) {
   const t = audioTracks.find(t => t.idx === idx);
   if (!t) return;

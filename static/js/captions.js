@@ -1,4 +1,4 @@
-// ── Captions module — Whisper transcription + style + canvas rendering ─────────
+// ── Captions module - Whisper transcription + style + canvas rendering ─────────
 
 // ── Caption canvas rendering ───────────────────────────────────────────────────
 function drawCaptionsOnCanvas() {
@@ -20,6 +20,27 @@ function drawCaptionsOnCanvas() {
   }
 }
 
+// ── Animation easing ─────────────────────────────────────────────────────────
+const ANIM_DUR = 0.15; // seconds for in/out transitions
+
+function _animAlpha(cs, seg, t) {
+  if (!cs.animStyle || cs.animStyle === 'none') return 1;
+  const segDur  = seg.end - seg.start;
+  const elapsed = t - seg.start;
+  const fadeIn  = Math.min(1, elapsed / ANIM_DUR);
+  const fadeOut = Math.min(1, (seg.end - t) / Math.min(ANIM_DUR, segDur * 0.3));
+  return cs.animStyle === 'fade' ? Math.min(fadeIn, fadeOut) : 1;
+}
+
+function _animScale(cs, seg, t) {
+  if (cs.animStyle !== 'pop') return 1;
+  const elapsed = t - seg.start;
+  if (elapsed >= ANIM_DUR) return 1;
+  // Overshoot spring: scale 0 → 1.12 → 1
+  const p = elapsed / ANIM_DUR;
+  return p < 0.7 ? p / 0.7 * 1.12 : 1.12 - (p - 0.7) / 0.3 * 0.12;
+}
+
 function _drawOneSeg(seg, cs, t) {
   const cw  = outCanvas.width;
   const ch  = outCanvas.height;
@@ -31,14 +52,37 @@ function _drawOneSeg(seg, cs, t) {
   const weight  = cs.fontWeight === 'black' ? '900' : cs.fontWeight;
   const fontStr = `${cs.fontItalic ? 'italic ' : ''}${weight} ${fs}px "${cs.fontFamily}", Arial, sans-serif`;
 
+  // ── Animation transforms ─────────────────────────────────────────────────
+  const alpha    = _animAlpha(cs, seg, t);
+  const animScl  = _animScale(cs, seg, t);
+  const cx       = (cs.positionX / 100) * cw;
+  const cy       = (cs.positionY / 100) * ch;
+
   outCtx.save();
+
+  // Apply fade alpha
+  if (alpha < 1) outCtx.globalAlpha = alpha;
+
+  // Apply pop scale around the text anchor point
+  if (animScl !== 1) {
+    outCtx.translate(cx, cy);
+    outCtx.scale(animScl, animScl);
+    outCtx.translate(-cx, -cy);
+  }
+
   outCtx.font      = fontStr;
   outCtx.textAlign = cs.textAlign;
 
-  // Word-wrap
-  const maxW    = (cs.maxWidth / 100) * cw;
+  // Apply letter-spacing (Chromium/Electron supports ctx.letterSpacing)
+  const lsPx = (cs.letterSpacing || 0) * scl;
+  if ('letterSpacing' in outCtx) {
+    outCtx.letterSpacing = lsPx + 'px';
+  }
+
+  // Word-wrap (measure with spacing applied)
+  const maxW     = (cs.maxWidth / 100) * cw;
   const rawWords = displayText.split(' ');
-  const lines   = [];
+  const lines    = [];
   let line = '';
   for (const w of rawWords) {
     const test = line ? line + ' ' + w : w;
@@ -49,27 +93,26 @@ function _drawOneSeg(seg, cs, t) {
 
   const lineH  = fs * cs.lineHeight;
   const totalH = lines.length * lineH;
-  const cx     = (cs.positionX / 100) * cw;
-  const cy     = (cs.positionY / 100) * ch;
 
   const wordTimes = (cs.highlightEnabled && seg.words?.length) ? seg.words : [];
 
   // Background box
   if (cs.bgOpacity > 0) {
-    const pad  = cs.bgPadding * scl;
+    const pad   = cs.bgPadding * scl;
     const maxLW = Math.max(...lines.map(l => outCtx.measureText(l).width));
-    const bgW  = maxLW + pad * 2;
-    const bgH  = totalH + pad * 2;
-    const bgX  = cs.textAlign === 'center' ? cx - bgW / 2 :
-                 cs.textAlign === 'right'  ? cx - bgW    : cx;
-    const bgY  = cy - totalH / 2 - pad;
-    const r    = cs.bgRadius * scl;
-    outCtx.globalAlpha = cs.bgOpacity;
+    const bgW   = maxLW + pad * 2;
+    const bgH   = totalH + pad * 2;
+    const bgX   = cs.textAlign === 'center' ? cx - bgW / 2 :
+                  cs.textAlign === 'right'  ? cx - bgW    : cx;
+    const bgY   = cy - totalH / 2 - pad;
+    const r     = cs.bgRadius * scl;
+    const prevAlpha = outCtx.globalAlpha;
+    outCtx.globalAlpha = cs.bgOpacity * alpha;
     outCtx.fillStyle   = cs.bgColor;
     if (r > 0 && outCtx.roundRect) {
       outCtx.beginPath(); outCtx.roundRect(bgX, bgY, bgW, bgH, r); outCtx.fill();
     } else { outCtx.fillRect(bgX, bgY, bgW, bgH); }
-    outCtx.globalAlpha = 1;
+    outCtx.globalAlpha = prevAlpha;
   }
 
   // Draw lines
@@ -169,6 +212,14 @@ async function generateCaptions() {
   const selectedTracks = getSelectedTracks();
   if (!selectedTracks.length) return toast('Select at least one track to transcribe');
 
+  // ── Hint nudge: warn (non-blocking) if hint field is empty ──────────────
+  const hintEl = document.getElementById('cc-prompt');
+  if (hintEl && !hintEl.value.trim()) {
+    hintEl.classList.add('cc-hint-warn');
+    setTimeout(() => hintEl.classList.remove('cc-hint-warn'), 2500);
+    toast('💡 Add a game name or keywords to the hint for better accuracy');
+  }
+
   const model         = document.getElementById('cc-model').value;
   const language      = document.getElementById('cc-lang').value;
   const initialPrompt = document.getElementById('cc-prompt')?.value?.trim() || null;
@@ -190,7 +241,7 @@ async function generateCaptions() {
       showWhisperDownloadPrompt();
       return;
     }
-    // Show a notice if running on CPU (AMD or no GPU) — slower but still works
+    // Show a notice if running on CPU (AMD or no GPU) - slower but still works
     if (whisperCheck.device === 'cpu') {
       const gpuLabel = whisperCheck.gpu === 'amd' ? 'AMD GPU detected \u2014 using CPU mode' : 'No GPU detected \u2014 using CPU mode';
       setCaptionStatus('running', `${gpuLabel} (slower, please wait\u2026)`);
@@ -233,7 +284,7 @@ async function generateCaptions() {
 
       if (!pd.tracks) { setCaptionStatus('error', pd.error || 'Transcription failed'); return; }
 
-      // Merge results into captionTracks — replace same trackIdx, append new
+      // Merge results into captionTracks - replace same trackIdx, append new
       const prevLen = captionTracks.length;
       pd.tracks.forEach((t, i) => {
         if (t.status !== 'done' || !t.segments?.length) return;
@@ -309,7 +360,7 @@ async function startWhisperDownload() {
   const dlBar   = document.getElementById('whisper-dl-bar');
 
   if (dlBtn)    dlBtn.disabled = true;
-  if (dlStatus) dlStatus.textContent = 'Starting download…';
+  if (dlStatus) dlStatus.textContent = 'Starting download...';
 
   try {
     await fetch(`${API}/whisper_download`, { method: 'POST' });
@@ -339,35 +390,10 @@ async function startWhisperDownload() {
   }, 800);
 }
 
-// ── Generate zone collapse ───────────────────────────────────────────────────
-let _generateZoneOpen = true;
-
-function toggleGenerateZone() {
-  _generateZoneOpen = !_generateZoneOpen;
-  applyGenerateZoneState();
-}
-
-function applyGenerateZoneState() {
-  const bar  = document.getElementById('cc-collapse-bar');
-  const body = document.getElementById('cc-generate-body');
-  if (!bar || !body) return;
-  if (_generateZoneOpen) {
-    bar.classList.add('open');
-    body.style.maxHeight = body.scrollHeight + 'px';
-  } else {
-    bar.classList.remove('open');
-    body.style.maxHeight = '0px';
-  }
-}
-
-function updateCollapseChips() {
-  const model = document.getElementById('cc-model')?.value || '';
-  const lang  = document.getElementById('cc-lang')?.value  || 'auto';
-  const mChip = document.getElementById('cc-chip-model');
-  const lChip = document.getElementById('cc-chip-lang');
-  if (mChip) mChip.textContent = model.replace('-turbo','\u2605').replace('large-v3','lv3').replace('large-v2','lv2').replace('distil-','d-');
-  if (lChip) lChip.textContent = lang;
-}
+// ── (Collapse zone removed — no-ops kept for safety) ────────────────────────
+function toggleGenerateZone() {}
+function applyGenerateZoneState() {}
+function updateCollapseChips() {}
 
 // ── Diarize UI helpers ───────────────────────────────────────────────────
 function onDiarizeToggle() {
@@ -384,18 +410,9 @@ function setSpeakerCount(btn) {
 function setCaptionStatus(state, msg) {
   const el = document.getElementById('cc-status');
   if (el) { el.textContent = msg; el.className = 'cc-status-text cc-status-' + state; }
-  // Mirror running/done/error into the collapse bar chip so it's visible when collapsed
-  const chip = document.getElementById('cc-chip-status');
-  if (!chip) return;
-  if (state === 'running') {
-    chip.style.display = ''; chip.textContent = '\u29f3'; chip.style.color = 'var(--accent3)';
-  } else if (state === 'done') {
-    chip.style.display = ''; chip.textContent = '\u2713'; chip.style.color = '#06D6A0';
-  } else if (state === 'error') {
-    chip.style.display = ''; chip.textContent = '\u2717'; chip.style.color = 'var(--accent2)';
-  } else {
-    chip.style.display = 'none';
-  }
+  // Update generate button state indicator
+  const btn = document.getElementById('cc-generate-btn');
+  if (btn) btn.dataset.state = state;
 }
 
 // ── Captions panel HTML ────────────────────────────────────────────────────────
@@ -404,145 +421,136 @@ function renderCaptionsPanel() {
   if (!panel) return;
 
   panel.innerHTML = `
-    <!-- ═══ TOP ZONE: Generate controls (collapsible) ═══════════════════ -->
-    <div class="cc-generate-zone" id="cc-generate-zone">
+    <!-- ═══ GENERATE DOCK ═══════════════════════════════════════════════ -->
+    <div class="cc-gen-dock" id="cc-gen-dock">
 
-      <!-- Collapse bar — always visible -->
-      <div class="cc-collapse-bar open" id="cc-collapse-bar" onclick="toggleGenerateZone()">
-        <div class="cc-collapse-chips">
-          <span class="cc-collapse-chip model" id="cc-chip-model">large-v3-turbo</span>
-          <span class="cc-collapse-chip" id="cc-chip-lang">auto</span>
-          <span class="cc-collapse-chip" id="cc-chip-status" style="display:none"></span>
+
+      <!-- ── Settings ──────────────────────────────────────────────────── -->
+      <div class="cc-dock-settings">
+        <div class="cc-row">
+          <div class="cc-field" style="flex:2">
+            <label class="cc-label">Model</label>
+            <select class="cc-select" id="cc-model">
+              <option value="tiny">tiny — fastest</option>
+              <option value="base">base — fast</option>
+              <option value="small">small — 2 GB</option>
+              <option value="medium">medium — 5 GB</option>
+              <option value="large-v3-turbo" selected>large-v3-turbo ★</option>
+              <option value="distil-large-v3">distil-large-v3</option>
+              <option value="large-v2">large-v2 — 10 GB</option>
+              <option value="large-v3">large-v3 — best</option>
+            </select>
+          </div>
+          <div class="cc-field" style="flex:1">
+            <label class="cc-label">Lang</label>
+            <select class="cc-select" id="cc-lang">
+              <option value="auto">auto</option>
+              <option value="en">EN</option>
+              <option value="es">ES</option>
+              <option value="fr">FR</option>
+              <option value="de">DE</option>
+              <option value="it">IT</option>
+              <option value="pt">PT</option>
+              <option value="ru">RU</option>
+              <option value="ja">JA</option>
+              <option value="ko">KO</option>
+              <option value="zh">ZH</option>
+            </select>
+          </div>
         </div>
-        <button class="cc-quick-gen" id="cc-generate-btn"
-          onclick="event.stopPropagation(); generateCaptions()"
-          title="Generate captions">
-          <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><polygon points="2,1 11,6 2,11"/></svg>
+        <div class="cc-field">
+          <label class="cc-label" title="Seed Whisper with game-specific words for better accuracy">
+            Hint <span style="opacity:0.35;font-weight:400;font-size:0.56rem">(optional — game name, keywords)</span>
+          </label>
+          <input class="cc-input" id="cc-prompt" type="text"
+            placeholder="e.g. Warzone, loadout, gulag, killstreak…">
+        </div>
+        <div class="cc-field">
+          <label class="cc-label">Tracks</label>
+          <div class="cc-track-picker" id="cc-track-picker">
+            <div class="cc-track-picker-row">
+              <label class="cc-track-check-wrap">
+                <input type="checkbox" class="cc-track-check" data-idx="0" checked>
+                <span class="cc-track-dot" style="background:var(--accent)"></span>
+              </label>
+              <input class="cc-track-label-input" id="cc-track-label-0" value="Track 1" placeholder="Label…">
+            </div>
+          </div>
+        </div>
+        <div class="cc-diarize-section" id="cc-diarize-section">
+          <label class="cc-diarize-toggle-row">
+            <input type="checkbox" id="cc-diarize" onchange="onDiarizeToggle()">
+            <span class="cc-diarize-toggle-label">
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="currentColor"><circle cx="3" cy="5.5" r="2"/><circle cx="8" cy="5.5" r="2"/><line x1="5" y1="5.5" x2="6" y2="5.5" stroke="currentColor" stroke-width="1.2"/></svg>
+              Detect multiple speakers
+            </span>
+          </label>
+          <div class="cc-diarize-opts" id="cc-diarize-opts" style="display:none">
+            <label class="cc-label" style="margin-bottom:5px">Speakers</label>
+            <div class="cc-speaker-count-group">
+              <button class="cc-speaker-count-btn active" data-count="" onclick="setSpeakerCount(this)">auto</button>
+              <button class="cc-speaker-count-btn" data-count="2" onclick="setSpeakerCount(this)">2</button>
+              <button class="cc-speaker-count-btn" data-count="3" onclick="setSpeakerCount(this)">3</button>
+              <button class="cc-speaker-count-btn" data-count="4" onclick="setSpeakerCount(this)">4</button>
+              <button class="cc-speaker-count-btn" data-count="5" onclick="setSpeakerCount(this)">5</button>
+            </div>
+            <p class="cc-diarize-hint">Each speaker gets its own caption track, colour &amp; position.</p>
+          </div>
+        </div>
+      </div><!-- /cc-dock-settings -->
+
+      <!-- ── Generate button + status ──────────────────────────────────── -->
+      <div class="cc-dock-footer">
+        <div class="cc-status-text cc-status-idle" id="cc-status">Ready — click Generate.</div>
+        <button class="cc-generate-btn" id="cc-generate-btn" onclick="generateCaptions()">
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor"><polygon points="2,1 11,6 2,11"/></svg>
           Generate
         </button>
-        <span class="cc-collapse-chevron">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="2,3.5 5,6.5 8,3.5"/></svg>
-        </span>
       </div>
 
-      <!-- Collapsible body -->
-      <div class="cc-generate-zone-body" id="cc-generate-body">
-        <!-- Transcription settings -->
-        <div class="cc-section">
-          <div class="cc-section-title">
-            <svg width="11" height="11" viewBox="0 0 11 11" fill="currentColor"><polygon points="5.5,0.5 7,4 11,4.2 8.2,6.8 9.1,10.5 5.5,8.6 1.9,10.5 2.8,6.8 0,4.2 4,4"/></svg>
-            WHISPER TRANSCRIPTION
-          </div>
-          <div class="cc-row">
-            <div class="cc-field" style="flex:2">
-              <label class="cc-label">Model</label>
-              <select class="cc-select" id="cc-model" onchange="updateCollapseChips()">
-                <option value="tiny">tiny — fastest, misses a lot</option>
-                <option value="base">base — fast, misses some</option>
-                <option value="small">small — ~2 GB VRAM</option>
-                <option value="medium">medium — ~5 GB VRAM</option>
-                <option value="large-v3-turbo" selected>large-v3-turbo — ~6 GB VRAM ★</option>
-                <option value="distil-large-v3">distil-large-v3 — ~6 GB VRAM</option>
-                <option value="large-v2">large-v2 — ~10 GB VRAM</option>
-                <option value="large-v3">large-v3 — ~10 GB VRAM, best</option>
-              </select>
-            </div>
-            <div class="cc-field" style="flex:1.2">
-              <label class="cc-label">Language</label>
-              <select class="cc-select" id="cc-lang" onchange="updateCollapseChips()">
-                <option value="auto">auto</option>
-                <option value="en">English</option>
-                <option value="es">Spanish</option>
-                <option value="fr">French</option>
-                <option value="de">German</option>
-                <option value="it">Italian</option>
-                <option value="pt">Portuguese</option>
-                <option value="ru">Russian</option>
-                <option value="ja">Japanese</option>
-                <option value="ko">Korean</option>
-                <option value="zh">Chinese</option>
-              </select>
-            </div>
-          </div>
-          <div class="cc-field" style="width:100%">
-            <label class="cc-label" title="Seed Whisper with game-specific words for better accuracy">Hint <span style="opacity:0.4;font-weight:400">(optional)</span></label>
-            <input class="cc-input" id="cc-prompt" type="text"
-              placeholder="e.g. Warzone, loadout, gulag, killstreak…"
-              style="width:100%">
-          </div>
-          <div class="cc-field" style="width:100%">
-            <label class="cc-label">Tracks</label>
-            <div class="cc-track-picker" id="cc-track-picker">
-              <div class="cc-track-picker-row">
-                <label class="cc-track-check-wrap">
-                  <input type="checkbox" class="cc-track-check" data-idx="0" checked>
-                  <span class="cc-track-dot" style="background:var(--accent)"></span>
-                </label>
-                <input class="cc-track-label-input" id="cc-track-label-0" value="Track 1" placeholder="Label…">
-              </div>
-            </div>
-          </div>
-          <!-- Diarization -->
-          <div class="cc-diarize-section" id="cc-diarize-section">
-            <label class="cc-diarize-toggle-row">
-              <input type="checkbox" id="cc-diarize" onchange="onDiarizeToggle()">
-              <span class="cc-diarize-toggle-label">
-                <svg width="11" height="11" viewBox="0 0 11 11" fill="currentColor"><circle cx="3" cy="5.5" r="2"/><circle cx="8" cy="5.5" r="2"/><line x1="5" y1="5.5" x2="6" y2="5.5" stroke="currentColor" stroke-width="1.2"/></svg>
-                Detect multiple speakers
-              </span>
-            </label>
-            <div class="cc-diarize-opts" id="cc-diarize-opts" style="display:none">
-              <label class="cc-label" style="margin-bottom:5px">Speakers</label>
-              <div class="cc-speaker-count-group">
-                <button class="cc-speaker-count-btn active" data-count="" onclick="setSpeakerCount(this)">auto</button>
-                <button class="cc-speaker-count-btn" data-count="2"  onclick="setSpeakerCount(this)">2</button>
-                <button class="cc-speaker-count-btn" data-count="3"  onclick="setSpeakerCount(this)">3</button>
-                <button class="cc-speaker-count-btn" data-count="4"  onclick="setSpeakerCount(this)">4</button>
-                <button class="cc-speaker-count-btn" data-count="5"  onclick="setSpeakerCount(this)">5</button>
-              </div>
-              <p class="cc-diarize-hint">Each speaker gets its own caption track, colour &amp; position.</p>
-            </div>
-          </div>
-          <div class="cc-status-text" id="cc-status">Ready — click Generate.</div>
+    </div><!-- /cc-gen-dock -->
+
+    <!-- ═══ STYLE SECTION ═══════════════════════════════════════════════ -->
+    <div class="cc-style-body" id="cc-style-body">
+
+      <!-- Style header bar -->
+      <div class="cc-style-header">
+        <div class="cc-style-header-left">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M1 8h2l4.5-5.5L6 1 1 6.5V8zm7.2-6.2a.7.7 0 0 0 0-1L7.2.8a.7.7 0 0 0-1 0l-.7.7 1.5 1.5.7-.7z"/></svg>
+          <span class="cc-style-title">STYLE</span>
+          <span class="cc-track-style-badge" id="cc-track-style-badge"></span>
         </div>
+        <div class="cc-style-header-right">
+          <button class="cc-icon-btn" onclick="resetActiveTrackStyle()" title="Reset track to defaults">reset</button>
+          <label class="cc-toggle-wrap">
+            <input type="checkbox" id="cc-enabled-toggle" onchange="onCaptionToggle(this.checked)">
+            <span class="cc-toggle-track"></span>
+            <span class="cc-toggle-label" id="cc-toggle-label">OFF</span>
+          </label>
+        </div>
+      </div>
 
-        <!-- Style controls -->
-        <div class="cc-section">
-          <div class="cc-section-title" style="justify-content:space-between">
-            <span style="display:flex;align-items:center;gap:6px">
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M1 8h2l4.5-5.5L6 1 1 6.5V8zm7.2-6.2a.7.7 0 0 0 0-1L7.2.8a.7.7 0 0 0-1 0l-.7.7 1.5 1.5.7-.7z"/></svg>
-              CAPTION STYLE
-              <span class="cc-track-style-badge" id="cc-track-style-badge"></span>
-            </span>
-            <div style="display:flex;align-items:center;gap:8px">
-              <button class="cc-icon-btn" onclick="resetActiveTrackStyle()" title="Reset track to defaults">reset</button>
-              <label class="cc-toggle-wrap">
-                <input type="checkbox" id="cc-enabled-toggle" onchange="onCaptionToggle(this.checked)">
-                <span class="cc-toggle-track"></span>
-                <span class="cc-toggle-label" id="cc-toggle-label">OFF</span>
-              </label>
-            </div>
-          </div>
+      <!-- Style groups -->
+      <div class="cc-style-content">
 
-          <div class="cc-sub-label">Typography</div>
-          <div class="cc-row">
-            <div class="cc-field" style="flex:1">
-              <label class="cc-label">Font</label>
-              <select class="cc-select" id="cc-font-family" onchange="updateCaptionStyle('fontFamily',this.value)">
-                <option value="Arial">Arial</option>
-                <option value="Arial Black">Arial Black</option>
-                <option value="Impact">Impact</option>
-                <option value="Verdana">Verdana</option>
-                <option value="Tahoma">Tahoma</option>
-                <option value="Calibri">Calibri</option>
-                <option value="Segoe UI">Segoe UI</option>
-                <option value="Georgia">Georgia</option>
-                <option value="Times New Roman">Times New Roman</option>
-                <option value="Trebuchet MS">Trebuchet MS</option>
-                <option value="Comic Sans MS">Comic Sans MS</option>
-                <option value="Courier New">Courier New</option>
-              </select>
-            </div>
+        <div class="cc-style-group">
+          <div class="cc-style-group-label">Typography</div>
+          <div class="cc-field">
+            <label class="cc-label">Font</label>
+            <select class="cc-select" id="cc-font-family" onchange="updateCaptionStyle('fontFamily',this.value)">
+              <option value="Arial">Arial</option>
+              <option value="Arial Black">Arial Black</option>
+              <option value="Impact">Impact</option>
+              <option value="Verdana">Verdana</option>
+              <option value="Tahoma">Tahoma</option>
+              <option value="Calibri">Calibri</option>
+              <option value="Segoe UI">Segoe UI</option>
+              <option value="Georgia">Georgia</option>
+              <option value="Times New Roman">Times New Roman</option>
+              <option value="Trebuchet MS">Trebuchet MS</option>
+              <option value="Comic Sans MS">Comic Sans MS</option>
+              <option value="Courier New">Courier New</option>
+            </select>
           </div>
           <div class="cc-slider-row">
             <span class="cc-slider-label">Size</span>
@@ -552,13 +560,15 @@ function renderCaptionsPanel() {
           </div>
           <div class="cc-row" style="gap:5px">
             <button class="cc-chip" id="cc-w-normal" onclick="setCaptionWeight('normal')">Normal</button>
-            <button class="cc-chip active" id="cc-w-bold"   onclick="setCaptionWeight('bold')">Bold</button>
-            <button class="cc-chip" id="cc-w-black"  onclick="setCaptionWeight('black')">Black</button>
+            <button class="cc-chip active" id="cc-w-bold" onclick="setCaptionWeight('bold')">Bold</button>
+            <button class="cc-chip" id="cc-w-black" onclick="setCaptionWeight('black')">Black</button>
             <button class="cc-chip" id="cc-italic-btn" onclick="toggleCaptionItalic()"><em>I</em></button>
             <button class="cc-chip" id="cc-caps-btn" onclick="toggleCaptionCaps()">TT</button>
           </div>
+        </div>
 
-          <div class="cc-sub-label">Colors</div>
+        <div class="cc-style-group">
+          <div class="cc-style-group-label">Colors</div>
           <div class="cc-color-grid">
             <div class="cc-color-row">
               <span class="cc-color-label">Text</span>
@@ -599,8 +609,10 @@ function renderCaptionsPanel() {
               <span class="cc-slider-val" id="cc-bg-p-val">14px</span>
             </div>
           </div>
+        </div>
 
-          <div class="cc-sub-label">Position &amp; Layout</div>
+        <div class="cc-style-group">
+          <div class="cc-style-group-label">Position &amp; Layout</div>
           <div class="cc-slider-row">
             <span class="cc-slider-label">X</span>
             <input type="range" class="cc-slider" id="cc-pos-x" min="0" max="100" step="0.5" value="50"
@@ -613,11 +625,11 @@ function renderCaptionsPanel() {
                    oninput="updateCaptionStyle('positionY',+this.value);document.getElementById('cc-pos-y-val').textContent=Math.round(this.value)+'%'">
             <span class="cc-slider-val" id="cc-pos-y-val">85%</span>
           </div>
-          <div class="cc-row" style="gap:4px;margin-top:2px">
-            <span class="cc-slider-label" style="min-width:42px">Align</span>
-            <button class="cc-chip" id="cc-align-left"   onclick="updateCaptionStyle('textAlign','left')" title="Left">&#9664;</button>
+          <div class="cc-row" style="gap:4px">
+            <span class="cc-slider-label">Align</span>
+            <button class="cc-chip" id="cc-align-left" onclick="updateCaptionStyle('textAlign','left')" title="Left">&#9664;</button>
             <button class="cc-chip active" id="cc-align-center" onclick="updateCaptionStyle('textAlign','center')" title="Center">&#9646;</button>
-            <button class="cc-chip" id="cc-align-right"  onclick="updateCaptionStyle('textAlign','right')" title="Right">&#9654;</button>
+            <button class="cc-chip" id="cc-align-right" onclick="updateCaptionStyle('textAlign','right')" title="Right">&#9654;</button>
           </div>
           <div class="cc-slider-row">
             <span class="cc-slider-label">Width</span>
@@ -637,30 +649,32 @@ function renderCaptionsPanel() {
                    oninput="updateCaptionStyle('letterSpacing',+this.value);document.getElementById('cc-ls-val').textContent=this.value+'px'">
             <span class="cc-slider-val" id="cc-ls-val">0px</span>
           </div>
+        </div>
 
-          <div class="cc-sub-label">Effects</div>
-          <div class="cc-row" style="gap:8px;align-items:center">
+        <div class="cc-style-group">
+          <div class="cc-style-group-label">Effects</div>
+          <div class="cc-effects-row">
             <label class="cc-inline-toggle">
               <input type="checkbox" id="cc-shadow-toggle" checked onchange="updateCaptionStyle('shadow',this.checked)">
               <span class="cc-inline-track"></span>
-              <span style="font-size:0.68rem;color:var(--text-mid)">Shadow</span>
+              <span class="cc-effects-label">Shadow</span>
             </label>
-            <label class="cc-color-swatch" style="margin-left:auto">
+            <label class="cc-color-swatch">
               <input type="color" id="cc-shadow-color" value="#000000" oninput="updateCaptionStyle('shadowColor',this.value)">
             </label>
           </div>
-          <div class="cc-row" style="gap:8px;align-items:center;margin-top:6px">
+          <div class="cc-effects-row">
             <label class="cc-inline-toggle">
               <input type="checkbox" id="cc-highlight-toggle" onchange="toggleWordHighlight(this.checked)">
               <span class="cc-inline-track"></span>
-              <span style="font-size:0.68rem;color:var(--text-mid)">Word highlight</span>
+              <span class="cc-effects-label">Word highlight</span>
             </label>
-            <label class="cc-color-swatch" style="margin-left:auto" title="Highlight color">
+            <label class="cc-color-swatch">
               <input type="color" id="cc-highlight-color" value="#FFD60A" oninput="updateCaptionStyle('highlightColor',this.value)">
             </label>
           </div>
-          <div class="cc-row" style="gap:8px;align-items:center;margin-top:6px">
-            <span class="cc-slider-label" style="min-width:58px">Animation</span>
+          <div class="cc-effects-row">
+            <span class="cc-effects-label" style="min-width:72px">Animation</span>
             <select class="cc-select" id="cc-anim" style="flex:1" onchange="updateCaptionStyle('animStyle',this.value)">
               <option value="none">None</option>
               <option value="pop">Pop</option>
@@ -668,30 +682,25 @@ function renderCaptionsPanel() {
             </select>
           </div>
         </div>
-      </div><!-- /cc-generate-zone-body -->
-    </div><!-- /cc-generate-zone -->
 
-    <!-- ═══ BOTTOM ZONE: Segments — always visible, fills space ══════════ -->
+      </div><!-- /cc-style-content -->
+    </div><!-- /cc-style-body -->
+
+    <!-- ═══ SEGMENTS ZONE ═══════════════════════════════════════════════ -->
     <div class="cc-segments-zone">
-      <div class="cc-section cc-segments-section">
-        <div class="cc-section-title" style="justify-content:space-between;align-items:center">
-          <span>SEGMENTS</span>
-          <div style="display:flex;gap:6px;align-items:center">
-            <button class="cc-icon-btn" onclick="addManualSegment()" title="Add segment manually">+ add</button>
-            <button class="cc-icon-btn" onclick="clearCaptions()" title="Clear all">✕ clear</button>
-          </div>
+      <div class="cc-segments-header">
+        <span class="cc-segs-title">SEGMENTS</span>
+        <div class="cc-segs-actions">
+          <button class="cc-icon-btn" onclick="addManualSegment()" title="Add segment manually">+ add</button>
+          <button class="cc-icon-btn" onclick="clearCaptions()" title="Clear all">✕ clear</button>
         </div>
-        <div class="cc-track-tabs" id="cc-track-tabs"></div>
-        <div class="cc-segments-list" id="cc-segments-list">
-          <div class="cc-empty-state">Generate captions or click "+ add" to create segments.</div>
-        </div>
+      </div>
+      <div class="cc-track-tabs" id="cc-track-tabs"></div>
+      <div class="cc-segments-list" id="cc-segments-list">
+        <div class="cc-empty-state">Generate captions or click “+ add” to create segments.</div>
       </div>
     </div><!-- /cc-segments-zone -->
   `;
-
-  // Initialise collapse zone and chips
-  applyGenerateZoneState();
-  updateCollapseChips();
 
   // Sync controls to current state
   syncCaptionControls();
@@ -900,7 +909,7 @@ function renderCaptionLanes() {
     // Label
     const label = document.createElement('div');
     label.className = 'tl-lane-label';
-    label.innerHTML = `<span class="tl-lane-dot" style="background:${track.color}"></span>`;
+    label.innerHTML = `<span class="tl-lane-dot" style="background:${track.color}"></span><span style="font-size:0.52rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(track.label)}</span>`;
     lane.appendChild(label);
 
     // Track bar
@@ -934,7 +943,7 @@ function renderCaptionLanes() {
           document.body.appendChild(_laneTooltipEl);
         }
         const text = seg.text?.trim() || '';
-        _laneTooltipEl.textContent = `${fmt(seg.start)} – ${fmt(seg.end)}  ${text.length > 60 ? text.slice(0,57) + '…' : text}`;
+        _laneTooltipEl.textContent = `${fmt(seg.start)} - ${fmt(seg.end)}  ${text.length > 60 ? text.slice(0,57) + '...' : text}`;
         _laneTooltipEl.style.display = 'block';
         _positionLaneTooltip(e);
       });
@@ -1157,7 +1166,7 @@ function updateCaptionTrackSelector() {
             <input type="checkbox" class="cc-track-check" data-idx="0" checked>
             <span class="cc-track-dot" style="background:${CAPTION_TRACK_COLORS[0]}"></span>
           </label>
-          <input class="cc-track-label-input" id="cc-track-label-0" value="Track 1" placeholder="Label…">
+          <input class="cc-track-label-input" id="cc-track-label-0" value="Track 1" placeholder="Label...">
         </div>`;
     }
     return;
@@ -1165,7 +1174,7 @@ function updateCaptionTrackSelector() {
 
   // Only rebuild if the track count changed (new video loaded)
   const currentCount = picker.querySelectorAll('.cc-track-check').length;
-  if (hadEntries && currentCount === tracks.length) return; // same tracks — don't touch user edits
+  if (hadEntries && currentCount === tracks.length) return; // same tracks - don't touch user edits
 
   // Full rebuild (new video with different track count)
   picker.innerHTML = tracks.map((t, i) => {
@@ -1182,7 +1191,7 @@ function updateCaptionTrackSelector() {
           <span class="cc-track-dot" style="background:${color}"></span>
         </label>
         <input class="cc-track-label-input" id="cc-track-label-${t.idx}"
-               value="${label.replace(/"/g,'&quot;')}" placeholder="Label…">
+               value="${label.replace(/"/g,'&quot;')}" placeholder="Label...">
         ${detail ? `<span class="cc-track-detail">${detail}</span>` : ''}
       </div>`;
   }).join('');

@@ -33,6 +33,7 @@
   </header>
 
   <div class="workspace">
+    <div class="workspace-top">
     <div id="drop-zone" onclick="document.getElementById('file-input').click()">
       <div class="drop-icon">▶</div>
       <div class="drop-text"><strong>Drop gameplay video here</strong>or click to browse</div>
@@ -58,30 +59,6 @@
           <div id="draw-guide"></div>
         </div>
       </div>
-      <div class="timeline-bar">
-        <button class="play-btn" id="play-btn" onclick="togglePlay()" title="Play / Pause (Space)">▶</button>
-        <span class="time-label" id="time-current">0:00</span>
-        <div class="tl-wrap">
-          <div class="tl-track" id="tl-track">
-            <div class="tl-mask tl-mask-l" id="tl-mask-l"></div>
-            <div class="tl-active" id="tl-active"></div>
-            <div class="tl-mask tl-mask-r" id="tl-mask-r"></div>
-            <div class="tl-handle tl-h-in" id="tl-h-in" title="Trim start — drag to set in-point"></div>
-            <div class="tl-handle tl-h-out" id="tl-h-out" title="Trim end — drag to set out-point"></div>
-            <div class="tl-head" id="tl-head"></div>
-          </div>
-          <div class="tl-info">
-            <span class="tl-time" id="tl-in-lbl">0:00</span>
-            <span class="tl-clip-dur" id="tl-clip-dur"></span>
-            <span class="tl-zoom-label" id="tl-zoom-label"></span>
-            <button class="tl-zoom-reset" id="tl-zoom-reset" onclick="tlZoomReset()" style="display:none" title="Reset zoom">1:1</button>
-            <span class="tl-time" id="tl-out-lbl">0:00</span>
-          </div>
-          <div class="tl-caption-lanes" id="tl-caption-lanes"></div>
-        </div>
-        <span class="time-label" id="time-total">0:00</span>
-      </div>
-      <div class="audio-tracks-bar hidden" id="audio-tracks-bar"></div>
     </div>
 
     <div class="resize-handle" id="rh1"></div>
@@ -148,8 +125,64 @@
         <!-- Populated by captions.js -->
       </div>
     </div>
-  </div>
-</div>
+  </div><!-- /workspace-top -->
+
+  <!-- Full-width DaVinci-style timeline ───────────────────────────────────── -->
+  <div class="timeline-section" id="timeline-section">
+    <div class="tl-resize-bar" id="tl-resize-bar" title="Drag to resize timeline"></div>
+    <div class="tl-body">
+
+      <!-- Play controls column -->
+      <div class="tl-play-col">
+        <button class="play-btn" id="play-btn" onclick="togglePlay()" title="Play / Pause (Space)">▶</button>
+        <span class="time-label tl-cur-time" id="time-current">0:00</span>
+      </div>
+
+      <!-- Tracks area: label + track content stacked as rows -->
+      <div class="tl-tracks-area" id="tl-tracks-area">
+        <!-- Full-height scrub head spanning all rows -->
+        <div class="tl-fullhead" id="tl-fullhead"></div>
+
+        <!-- Video row -->
+        <div class="tl-row tl-row-video">
+          <div class="tl-row-label">VIDEO</div>
+          <div class="tl-row-content">
+            <div class="tl-wrap">
+              <div class="tl-track" id="tl-track">
+                <div class="tl-mask tl-mask-l" id="tl-mask-l"></div>
+                <div class="tl-active" id="tl-active"></div>
+                <div class="tl-mask tl-mask-r" id="tl-mask-r"></div>
+                <div class="tl-handle tl-h-in" id="tl-h-in" title="Trim start — drag to set in-point"></div>
+                <div class="tl-handle tl-h-out" id="tl-h-out" title="Trim end — drag to set out-point"></div>
+                <div class="tl-head" id="tl-head"></div>
+              </div>
+              <div class="tl-info">
+                <span class="tl-time" id="tl-in-lbl">0:00</span>
+                <span class="tl-clip-dur" id="tl-clip-dur"></span>
+                <span class="tl-zoom-label" id="tl-zoom-label"></span>
+                <button class="tl-zoom-reset" id="tl-zoom-reset" onclick="tlZoomReset()" style="display:none" title="Reset zoom">1:1</button>
+                <span class="tl-time" id="tl-out-lbl">0:00</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Audio track rows (populated dynamically by audio.js) -->
+        <div class="audio-tracks-bar hidden" id="audio-tracks-bar"></div>
+
+        <!-- Caption lane rows (populated by renderCaptionLanes()) -->
+        <div class="tl-caption-lanes" id="tl-caption-lanes"></div>
+      </div>
+
+      <!-- Total duration -->
+      <div class="tl-end-col">
+        <span class="time-label" id="time-total">0:00</span>
+      </div>
+
+    </div><!-- /tl-body -->
+  </div><!-- /timeline-section -->
+
+</div><!-- /workspace -->
 
 <div id="preset-modal">
   <div class="modal-box">

@@ -54,6 +54,10 @@ function updateTL() {
   document.getElementById('tl-h-out').style.left      = outPct + '%';
   document.getElementById('tl-head').style.left       = headPct + '%';
 
+  // ── Full-height scrub line across all rows ───────────────────────────────
+  const tracksArea = document.getElementById('tl-tracks-area');
+  if (tracksArea) tracksArea.style.setProperty('--tl-head-pct', headPct);
+
   document.getElementById('tl-in-lbl').textContent   = fmt(trimStart);
   document.getElementById('tl-out-lbl').textContent  = fmt(trimEnd ?? dur);
   document.getElementById('tl-clip-dur').textContent = 'clip: ' + fmt((trimEnd ?? dur) - trimStart);
@@ -120,4 +124,38 @@ tlTrack.addEventListener('mousedown', e => {
     const t = tlClientToTime(e.clientX);
     videoEl.currentTime = Math.max(trimStart, Math.min(trimEnd ?? dur, t));
   }
+});
+
+// ── Timeline section vertical resize ──────────────────────────────────────────
+let _tlSectionResizing = false;
+let _tlSectionResizeStartY = 0;
+let _tlSectionResizeStartH = 0;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const resizeBar = document.getElementById('tl-resize-bar');
+  const section   = document.getElementById('timeline-section');
+  if (!resizeBar || !section) return;
+
+  resizeBar.addEventListener('mousedown', e => {
+    _tlSectionResizing = true;
+    _tlSectionResizeStartY = e.clientY;
+    _tlSectionResizeStartH = section.getBoundingClientRect().height;
+    resizeBar.classList.add('active');
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!_tlSectionResizing) return;
+    // Dragging UP increases height (timeline grows upward)
+    const delta  = _tlSectionResizeStartY - e.clientY;
+    const newH   = Math.max(80, Math.min(480, _tlSectionResizeStartH + delta));
+    section.style.height = newH + 'px';
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (_tlSectionResizing) {
+      _tlSectionResizing = false;
+      document.getElementById('tl-resize-bar')?.classList.remove('active');
+    }
+  });
 });

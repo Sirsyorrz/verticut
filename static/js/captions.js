@@ -1130,6 +1130,9 @@ function renderCaptionLanes() {
             void segEl.offsetWidth;
             segEl.classList.add('cc-seg-flash');
             segEl.addEventListener('animationend', () => segEl.classList.remove('cc-seg-flash'), { once: true });
+            
+            const ta = segEl.querySelector('.cc-seg-text');
+            if (ta) ta.focus();
           }, 30);
         }, 20);
       });

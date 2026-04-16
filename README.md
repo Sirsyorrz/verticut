@@ -7,21 +7,26 @@
   [![Release](https://img.shields.io/github/v/release/Sirsyorrz/verticut?color=blue&style=for-the-badge)](https://github.com/Sirsyorrz/verticut/releases)
 </div>
 
-Built with Electron + FFmpeg. No cloud, no subscription, no internet required. Fully portable — one `.exe`, nothing to install.
+Built with Electron + FFmpeg. No cloud, no subscription, no internet required. Easy installer with everything bundled.
 
 ---
 
 ## 🚀 Download
 
-Grab the latest portable `.exe` from [**Releases**](https://github.com/Sirsyorrz/verticut/releases) — just double-click and run.
+Grab the latest installer from [**Releases**](https://github.com/Sirsyorrz/verticut/releases) — double-click to install and launch.
 
 ---
 
-## ✨ What's New
+## ✨ Version 1.6.0 — Major Update
 
-VertiCut has been freshly updated with a **completely redesigned UI** featuring a modern color scheme, updated typography, and layout polish.
+### 🎬 Caption Mode
+Automatically generate captions for your videos using OpenAI's Whisper AI. Process entirely offline with GPU acceleration for blazing-fast transcription. No internet required.
 
-Additionally, **Auto-Captions** are now supported! Powered by OpenAI's Whisper (via `faster-whisper`), you can generate accurate subtitles entirely offline. *(Note: Captions currently require an NVIDIA GPU with CUDA).*
+### 🎨 Redesigned UI
+Completely refreshed interface with a modern color scheme, improved typography, and polished layouts for a premium feel.
+
+### ⚡ Performance
+GPU acceleration support for faster caption generation and video processing.
 
 ---
 
@@ -54,8 +59,8 @@ Additionally, **Auto-Captions** are now supported! Powered by OpenAI's Whisper (
 
 ## 🛠 Features
 
-- **Auto-Captions (New)** — one-click subtitle generation using OpenAI Whisper (NVIDIA GPU only)
-- **Modern UI Design (New)** — freshly redesigned dark scheme and layout
+- **Auto-Captions** — one-click subtitle generation with GPU acceleration (NVIDIA CUDA required)
+- **Modern UI Design** — completely redesigned interface with updated color scheme and typography
 - **Multi-zone layout** — draw multiple crop regions on your source video and position them freely on a 9:16 canvas
 - **Live preview** — real-time side-by-side preview of the source and 9:16 output while you edit
 - **8-point resize handles** — drag any corner or edge of a zone to resize, drag center to reposition
@@ -64,7 +69,7 @@ Additionally, **Auto-Captions** are now supported! Powered by OpenAI's Whisper (
 - **Zone disable** — temporarily hide a crop zone from the output (👁 toggle) without deleting it
 - **Multi-track audio** — detects all audio streams (game audio, mic, commentary), shows per-track mute toggles with live frequency visualizers, merges only un-muted tracks
 - **Custom resolution & FPS** — export at any resolution, default 1080×1920 @ 60 fps
-- **Portable** — single `.exe`, no installation, FFmpeg and Whisper bundled inside
+- **Easy Install** — streamlined installer with FFmpeg and Whisper bundled inside
 
 ---
 
